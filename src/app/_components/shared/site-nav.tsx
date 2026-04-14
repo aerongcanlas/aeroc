@@ -22,7 +22,7 @@ export function SiteNav() {
                 return (
                     <BoxRow
                         key={item.href}
-                        className={cn('items-center gap-1 px-1')}>
+                        className={cn('items-center gap-1 px-0.5')}>
                         {index > 0 && (
                             <Box className='border-l border-white/10 h-4 w-px' />
                         )}
@@ -30,7 +30,7 @@ export function SiteNav() {
                             key={item.href}
                             href={item.href}
                             className={cn(
-                                'rounded-full px-3 py-1.5 transition hover:bg-white/10 hover:text-white',
+                                'rounded-full px-3 py-1 transition hover:bg-white/10 hover:text-white',
                             )}>
                             {item.label}
                         </Link>
