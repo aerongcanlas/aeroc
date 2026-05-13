@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { PageShell } from '../../_components/shared/page-shell';
 
 const siteSections = [
+    { href: '/tools/edc-planner', label: 'EDC Planner' },
     { href: '/tools/python-cheat-sheet', label: 'Python Cheat Sheet' },
 ];
 

@@ -1,0 +1,57 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function isGroupMember(groupId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid));
+    }
+
+    match /users/{userId} {
+      allow read, create, update: if isSelf(userId);
+
+      match /groups/{groupId} {
+        allow read, create, update, delete: if isSelf(userId);
+      }
+    }
+
+    match /festivals/{festivalId} {
+      allow read: if signedIn();
+      allow create, update, delete: if signedIn();
+
+      match /stages/{stageId} {
+        allow read: if signedIn();
+        allow create, update, delete: if signedIn();
+      }
+
+      match /sets/{setId} {
+        allow read: if signedIn();
+        allow create, update, delete: if signedIn();
+      }
+    }
+
+    match /groups/{groupId} {
+      allow read, create: if signedIn();
+      allow update, delete: if isGroupMember(groupId);
+
+      match /members/{userId} {
+        allow read: if isGroupMember(groupId) || isSelf(userId);
+        allow create, update: if isSelf(userId);
+        allow delete: if isSelf(userId);
+      }
+
+      match /setSelections/{setId} {
+        allow read, create, update: if isGroupMember(groupId);
+        allow delete: if isGroupMember(groupId);
+      }
+    }
+  }
+}

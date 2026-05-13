@@ -1,0 +1,173 @@
+import { BoxColumn, BoxRow, Text } from '@/app/_components/ui';
+import { firestore } from '@/lib/firebase';
+import {
+    addDoc,
+    collection,
+    doc,
+    getDoc,
+    onSnapshot,
+    serverTimestamp,
+    setDoc,
+} from 'firebase/firestore';
+import { Copy, Plus } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import type { Group, Profile } from './types';
+import { getInviteLink } from './utils';
+
+export default function GroupPanel({
+    profile,
+    activeGroupId,
+    setActiveGroupId,
+}: {
+    profile: Profile;
+    activeGroupId: string;
+    setActiveGroupId: (groupId: string) => void;
+}) {
+    const [groupName, setGroupName] = useState('');
+    const [joinId, setJoinId] = useState('');
+    const [groups, setGroups] = useState<Group[]>([]);
+    const [copied, setCopied] = useState('');
+
+    useEffect(() => {
+        return onSnapshot(
+            collection(firestore, 'users', profile.uid, 'groups'),
+            (snapshot) => {
+                setGroups(
+                    snapshot.docs.map((groupDoc) => ({
+                        id: groupDoc.id,
+                        name: groupDoc.data().name ?? 'EDC group',
+                    })),
+                );
+            },
+        );
+    }, [profile.uid]);
+
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const invitedGroupId = params.get('group');
+
+        if (invitedGroupId) {
+            setJoinId(invitedGroupId);
+        }
+    }, []);
+
+    const joinGroup = async (groupId: string, name = 'EDC group') => {
+        await setDoc(
+            doc(firestore, 'groups', groupId, 'members', profile.uid),
+            {
+                ...profile,
+                joinedAt: serverTimestamp(),
+            },
+        );
+        await setDoc(doc(firestore, 'users', profile.uid, 'groups', groupId), {
+            name,
+            joinedAt: serverTimestamp(),
+        });
+        setActiveGroupId(groupId);
+    };
+
+    const createGroup = async () => {
+        const groupRef = await addDoc(collection(firestore, 'groups'), {
+            name: groupName.trim() || 'EDC group',
+            createdBy: profile.uid,
+            createdAt: serverTimestamp(),
+        });
+
+        await joinGroup(groupRef.id, groupName.trim() || 'EDC group');
+        setGroupName('');
+    };
+
+    const joinExistingGroup = async () => {
+        if (!joinId.trim()) {
+            return;
+        }
+
+        const groupDoc = await getDoc(doc(firestore, 'groups', joinId.trim()));
+        await joinGroup(joinId.trim(), groupDoc.data()?.name ?? 'EDC group');
+        setJoinId('');
+    };
+
+    const copyInvite = async () => {
+        if (!activeGroupId) {
+            return;
+        }
+
+        await navigator.clipboard.writeText(getInviteLink(activeGroupId));
+        setCopied('Invite link copied.');
+    };
+
+    return (
+        <BoxColumn className='gap-4 rounded-3xl border border-white/10 bg-black/35 p-5 backdrop-blur-md'>
+            <BoxRow className='items-center justify-between gap-4'>
+                <BoxColumn className='gap-1'>
+                    <Text className='text-sm font-semibold uppercase tracking-[0.22em] text-white/45'>
+                        Group
+                    </Text>
+                    <Text className='text-2xl font-semibold'>Your crew</Text>
+                </BoxColumn>
+                {activeGroupId ? (
+                    <button
+                        className='inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/8 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/14'
+                        onClick={copyInvite}
+                        type='button'>
+                        <Copy className='h-4 w-4' />
+                        Copy invite
+                    </button>
+                ) : null}
+            </BoxRow>
+
+            <BoxRow className='flex-wrap gap-3'>
+                <input
+                    className='min-w-56 flex-1 rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-white outline-none placeholder:text-white/35 focus:border-cyan-200/60'
+                    onChange={(event) => setGroupName(event.target.value)}
+                    placeholder='New group name'
+                    value={groupName}
+                />
+                <button
+                    className='inline-flex items-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:bg-cyan-50'
+                    onClick={createGroup}
+                    type='button'>
+                    <Plus className='h-4 w-4' />
+                    Create
+                </button>
+            </BoxRow>
+
+            <BoxRow className='flex-wrap gap-3'>
+                <input
+                    className='min-w-56 flex-1 rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-white outline-none placeholder:text-white/35 focus:border-cyan-200/60'
+                    onChange={(event) => setJoinId(event.target.value)}
+                    placeholder='Paste group id or open an invite link'
+                    value={joinId}
+                />
+                <button
+                    className='rounded-full border border-white/15 bg-white/8 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/14'
+                    onClick={joinExistingGroup}
+                    type='button'>
+                    Join
+                </button>
+            </BoxRow>
+
+            {groups.length ? (
+                <BoxRow className='flex-wrap gap-2'>
+                    {groups.map((group) => (
+                        <button
+                            className={`rounded-full border px-4 py-2 text-sm font-medium transition ${
+                                activeGroupId === group.id
+                                    ? 'border-white/30 bg-white text-black'
+                                    : 'border-white/15 bg-white/8 text-white hover:bg-white/14'
+                            }`}
+                            key={group.id}
+                            onClick={() => setActiveGroupId(group.id)}
+                            type='button'>
+                            {group.name}
+                        </button>
+                    ))}
+                </BoxRow>
+            ) : null}
+
+            {copied ? (
+                <Text className='text-sm text-cyan-100'>{copied}</Text>
+            ) : null}
+        </BoxColumn>
+    );
+}
