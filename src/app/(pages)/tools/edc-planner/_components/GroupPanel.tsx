@@ -97,8 +97,8 @@ export default function GroupPanel({
     };
 
     return (
-        <BoxColumn className='gap-4 rounded-3xl border border-white/10 bg-black/35 p-5 backdrop-blur-md'>
-            <BoxRow className='items-center justify-between gap-4'>
+        <BoxColumn className='gap-4 rounded-2xl border border-white/10 bg-black/35 p-4 backdrop-blur-md sm:rounded-3xl sm:p-5'>
+            <BoxRow className='flex-wrap items-center justify-between gap-4'>
                 <BoxColumn className='gap-1'>
                     <Text className='text-sm font-semibold uppercase tracking-[0.22em] text-white/45'>
                         Group
@@ -116,15 +116,15 @@ export default function GroupPanel({
                 ) : null}
             </BoxRow>
 
-            <BoxRow className='flex-wrap gap-3'>
+            <BoxRow className='flex-col gap-3 sm:flex-row sm:flex-wrap'>
                 <input
-                    className='min-w-56 flex-1 rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-white outline-none placeholder:text-white/35 focus:border-cyan-200/60'
+                    className='w-full min-w-0 flex-1 rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-white outline-none placeholder:text-white/35 focus:border-cyan-200/60 sm:min-w-56'
                     onChange={(event) => setGroupName(event.target.value)}
                     placeholder='New group name'
                     value={groupName}
                 />
                 <button
-                    className='inline-flex items-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:bg-cyan-50'
+                    className='inline-flex w-full items-center justify-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:bg-cyan-50 sm:w-auto'
                     onClick={createGroup}
                     type='button'>
                     <Plus className='h-4 w-4' />
@@ -132,15 +132,15 @@ export default function GroupPanel({
                 </button>
             </BoxRow>
 
-            <BoxRow className='flex-wrap gap-3'>
+            <BoxRow className='flex-col gap-3 sm:flex-row sm:flex-wrap'>
                 <input
-                    className='min-w-56 flex-1 rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-white outline-none placeholder:text-white/35 focus:border-cyan-200/60'
+                    className='w-full min-w-0 flex-1 rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-white outline-none placeholder:text-white/35 focus:border-cyan-200/60 sm:min-w-56'
                     onChange={(event) => setJoinId(event.target.value)}
                     placeholder='Paste group id or open an invite link'
                     value={joinId}
                 />
                 <button
-                    className='rounded-full border border-white/15 bg-white/8 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/14'
+                    className='w-full rounded-full border border-white/15 bg-white/8 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/14 sm:w-auto'
                     onClick={joinExistingGroup}
                     type='button'>
                     Join

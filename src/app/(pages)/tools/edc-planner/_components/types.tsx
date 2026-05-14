@@ -23,6 +23,17 @@ export type FestivalSet = {
     endTime: string;
 };
 
+export type Meetup = {
+    id: string;
+    title: string;
+    location: string;
+    day: string;
+    startTime: string;
+    endTime: string;
+    createdBy: string;
+    createdByName: string;
+};
+
 export type Group = {
     id: string;
     name: string;

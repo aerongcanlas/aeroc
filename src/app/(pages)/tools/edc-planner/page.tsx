@@ -10,6 +10,7 @@ import AdminPanel from './_components/AdminPanel';
 import AuthPanel from './_components/AuthPanel';
 import Avatar from './_components/Avatar';
 import GroupPanel from './_components/GroupPanel';
+import MeetupPanel from './_components/MeetupPanel';
 import ProfilePanel from './_components/ProfilePanel';
 import ScheduleBoard from './_components/ScheduleBoard';
 import type { Profile } from './_components/types';
@@ -75,14 +76,14 @@ export default function EdcPlannerPage() {
     }
 
     return (
-        <BoxColumn className='mx-auto min-h-screen w-full max-w-7xl gap-5 px-5 py-8 text-white sm:px-8 lg:px-10'>
-            <BoxColumn className='gap-5 rounded-3xl border border-white/10 bg-black/40 p-5 backdrop-blur-md sm:p-7'>
+        <BoxColumn className='mx-auto min-h-screen w-full max-w-7xl gap-4 overflow-x-hidden px-3 py-5 text-white sm:gap-5 sm:px-8 sm:py-8 lg:px-10'>
+            <BoxColumn className='gap-5 rounded-2xl border border-white/10 bg-black/40 p-4 backdrop-blur-md sm:rounded-3xl sm:p-7'>
                 <BoxRow className='flex-wrap items-center justify-between gap-4'>
                     <BoxColumn className='gap-3'>
                         <Text className='text-sm font-semibold uppercase tracking-[0.3em] text-white/55'>
                             EDC planner
                         </Text>
-                        <Text className='text-4xl font-semibold tracking-tight sm:text-6xl'>
+                        <Text className='text-3xl font-semibold tracking-tight sm:text-6xl'>
                             Electric Daisy Carnival
                         </Text>
                         <BoxRow className='flex-wrap items-center gap-3 text-white/70'>
@@ -107,7 +108,7 @@ export default function EdcPlannerPage() {
                         </BoxRow>
                     </BoxColumn>
 
-                    <BoxRow className='items-center gap-3'>
+                    <BoxRow className='flex-wrap items-center gap-3'>
                         <Avatar member={profile} />
                         <button
                             className='inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/8 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/14'
@@ -120,14 +121,20 @@ export default function EdcPlannerPage() {
                 </BoxRow>
             </BoxColumn>
 
-            <Box className='grid gap-5 xl:grid-cols-[0.9fr_1.5fr]'>
+            <Box className='grid min-w-0 gap-4 sm:gap-5 xl:grid-cols-[0.9fr_1.5fr]'>
                 <BoxColumn className='gap-5'>
                     <GroupPanel
                         activeGroupId={activeGroupId}
                         profile={profile}
                         setActiveGroupId={setActiveGroupId}
                     />
-                    <AdminPanel isAdmin={isAdmin} />
+                    {activeGroupId ? (
+                        <MeetupPanel
+                            activeGroupId={activeGroupId}
+                            profile={profile}
+                        />
+                    ) : null}
+                    {isAdmin && <AdminPanel />}
                 </BoxColumn>
 
                 {activeGroupId ? (

@@ -66,13 +66,13 @@ export default function ProfilePanel({ user }: { user: User }) {
     };
 
     return (
-        <BoxColumn className='mx-auto min-h-screen w-full max-w-3xl justify-center gap-6 px-5 py-12 text-white sm:px-8'>
-            <BoxColumn className='gap-6 rounded-3xl border border-white/10 bg-black/40 p-6 backdrop-blur-md sm:p-8'>
+        <BoxColumn className='mx-auto min-h-screen w-full max-w-3xl justify-center gap-6 overflow-x-hidden px-3 py-8 text-white sm:px-8 sm:py-12'>
+            <BoxColumn className='gap-6 rounded-2xl border border-white/10 bg-black/40 p-4 backdrop-blur-md sm:rounded-3xl sm:p-8'>
                 <BoxColumn className='gap-3'>
                     <Text className='text-sm font-semibold uppercase tracking-[0.3em] text-white/55'>
                         Profile setup
                     </Text>
-                    <Text className='text-4xl font-semibold tracking-tight'>
+                    <Text className='text-3xl font-semibold tracking-tight sm:text-4xl'>
                         Add your festival face
                     </Text>
                     <Text className='text-base leading-8 text-white/72'>
@@ -94,9 +94,11 @@ export default function ProfilePanel({ user }: { user: User }) {
                         placeholder='Last name'
                         value={lastName}
                     />
-                    <label className='flex cursor-pointer items-center gap-3 rounded-2xl border border-white/10 bg-white/6 px-4 py-3 text-sm text-white/75 transition hover:bg-white/10'>
+                    <label className='flex min-w-0 cursor-pointer items-center gap-3 rounded-2xl border border-white/10 bg-white/6 px-4 py-3 text-sm text-white/75 transition hover:bg-white/10'>
                         <Camera className='h-4 w-4' />
-                        {photo ? photo.name : 'Choose profile picture'}
+                        <Text className='min-w-0 truncate text-sm'>
+                            {photo ? photo.name : 'Choose profile picture'}
+                        </Text>
                         <input
                             className='sr-only'
                             onChange={(event) =>
@@ -108,9 +110,9 @@ export default function ProfilePanel({ user }: { user: User }) {
                     </label>
                 </BoxColumn>
 
-                <BoxRow className='items-center gap-3'>
+                <BoxRow className='flex-col items-stretch gap-3 sm:flex-row sm:items-center'>
                     <button
-                        className='rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:bg-cyan-50'
+                        className='w-full rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:bg-cyan-50 sm:w-auto'
                         disabled={saving}
                         onClick={saveProfile}
                         type='button'>

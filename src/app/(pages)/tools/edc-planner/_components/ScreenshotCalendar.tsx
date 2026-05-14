@@ -1,34 +1,31 @@
-import { Box, BoxRow, Text } from '@/app/_components/ui';
-import Avatar from './Avatar';
-import type { FestivalSet, GroupMember, Selection, Stage } from './types';
+import { Box, Text } from '@/app/_components/ui';
+import { useState } from 'react';
+import type { FestivalSet, Meetup, Selection, Stage } from './types';
 import {
     getDisplayTime,
     getScheduleMinute,
+    scheduleEndMinutes,
     scheduleStartMinutes,
 } from './utils';
 
 export default function ScreenshotCalendar({
     activeDay,
-    currentUserId,
     days,
     friendFilter,
-    memberById,
-    onlyMine,
+    meetups,
     selections,
     sets,
     stages,
 }: {
     activeDay: string;
-    currentUserId: string;
     days: string[];
     friendFilter: string;
-    memberById: Record<string, GroupMember>;
-    onlyMine: boolean;
+    meetups: Meetup[];
     selections: Record<string, Selection>;
     sets: FestivalSet[];
     stages: Stage[];
 }) {
-    const hourHeight = 86;
+    const [downloadStatus, setDownloadStatus] = useState('');
     const hourLabels = [
         '07:00',
         '08:00',
@@ -44,17 +41,20 @@ export default function ScreenshotCalendar({
         '06:00',
     ];
     const dayNumber = Math.max(days.indexOf(activeDay) + 1, 1);
-    const calendarHeight = (hourLabels.length - 1) * hourHeight;
+    const scheduleDuration = scheduleEndMinutes - scheduleStartMinutes;
+    const visibleMeetups = meetups.filter((meetup) => meetup.day === activeDay);
+    const hasMeetups = visibleMeetups.length > 0;
+    const calendarColumnCount = Math.max(
+        stages.length + (hasMeetups ? 1 : 0),
+        1,
+    );
+    const isDense = calendarColumnCount >= 7;
+    const displayFontFamily = 'Inter, Arial, sans-serif';
+    const meetupColor = '#67e8f9';
 
-    const getVisibleMembers = (setId: string) => {
+    const isVisiblePick = (setId: string) => {
         const selectedUserIds = selections[setId]?.userIds ?? [];
         let filteredUserIds = selectedUserIds;
-
-        if (onlyMine) {
-            filteredUserIds = filteredUserIds.filter(
-                (userId) => userId === currentUserId,
-            );
-        }
 
         if (friendFilter !== 'all') {
             filteredUserIds = filteredUserIds.filter(
@@ -62,54 +62,472 @@ export default function ScreenshotCalendar({
             );
         }
 
-        return filteredUserIds
-            .map((userId) => memberById[userId])
-            .filter(Boolean);
+        return filteredUserIds.length > 0;
+    };
+
+    const drawRoundedRect = (
+        context: CanvasRenderingContext2D,
+        x: number,
+        y: number,
+        width: number,
+        height: number,
+        radius: number,
+    ) => {
+        const safeRadius = Math.min(radius, width / 2, height / 2);
+
+        context.beginPath();
+        context.moveTo(x + safeRadius, y);
+        context.lineTo(x + width - safeRadius, y);
+        context.quadraticCurveTo(x + width, y, x + width, y + safeRadius);
+        context.lineTo(x + width, y + height - safeRadius);
+        context.quadraticCurveTo(
+            x + width,
+            y + height,
+            x + width - safeRadius,
+            y + height,
+        );
+        context.lineTo(x + safeRadius, y + height);
+        context.quadraticCurveTo(x, y + height, x, y + height - safeRadius);
+        context.lineTo(x, y + safeRadius);
+        context.quadraticCurveTo(x, y, x + safeRadius, y);
+        context.closePath();
+    };
+
+    const drawWrappedText = ({
+        context,
+        text,
+        x,
+        y,
+        maxWidth,
+        lineHeight,
+        maxLines,
+    }: {
+        context: CanvasRenderingContext2D;
+        text: string;
+        x: number;
+        y: number;
+        maxWidth: number;
+        lineHeight: number;
+        maxLines: number;
+    }) => {
+        const words = text.split(/\s+/);
+        const lines: string[] = [];
+        let line = '';
+
+        words.forEach((word) => {
+            const candidate = line ? `${line} ${word}` : word;
+
+            if (
+                context.measureText(candidate).width <= maxWidth ||
+                !line
+            ) {
+                line = candidate;
+                return;
+            }
+
+            lines.push(line);
+            line = word;
+        });
+
+        if (line) {
+            lines.push(line);
+        }
+
+        const visibleLines = lines.slice(0, maxLines);
+        const totalHeight = visibleLines.length * lineHeight;
+
+        visibleLines.forEach((visibleLine, index) => {
+            const suffix =
+                index === maxLines - 1 && lines.length > maxLines ? '...' : '';
+            context.fillText(
+                `${visibleLine}${suffix}`,
+                x,
+                y - totalHeight / 2 + lineHeight * index + lineHeight * 0.75,
+                maxWidth,
+            );
+        });
+    };
+
+    const getWallpaperSize = () => {
+        if (typeof window === 'undefined') {
+            return { width: 1290, height: 2796 };
+        }
+
+        const pixelRatio = Math.max(window.devicePixelRatio || 1, 1);
+        const screenWidth = Math.round(window.screen.width * pixelRatio);
+        const screenHeight = Math.round(window.screen.height * pixelRatio);
+        const isPhoneLike = window.innerWidth <= 700;
+        const width = isPhoneLike ? screenWidth : 1290;
+        const height = isPhoneLike ? screenHeight : 2796;
+
+        return {
+            width: Math.min(width, height),
+            height: Math.max(width, height),
+        };
+    };
+
+    const downloadWallpaper = async () => {
+        await document.fonts.ready;
+
+        const { width, height } = getWallpaperSize();
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+
+        if (!context) {
+            setDownloadStatus('Could not create wallpaper canvas.');
+            return;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const padding = width * 0.018;
+        const titleHeight = height * 0.045;
+        const headerHeight = height * 0.058;
+        const titleY = padding + titleHeight * 0.72;
+        const headerY = padding + titleHeight;
+        const bodyY = headerY + headerHeight;
+        const bodyHeight = height - bodyY - padding;
+        const timeColumnWidth = width * 0.058;
+        const gap = Math.max(width * 0.0035, 2);
+        const calendarWidth = width - padding * 2;
+        const stageColumnWidth =
+            (calendarWidth - timeColumnWidth - gap * calendarColumnCount) /
+            calendarColumnCount;
+        const denseFontScale = isDense ? 0.82 : 1;
+
+        context.fillStyle = '#000000';
+        context.fillRect(0, 0, width, height);
+
+        context.textAlign = 'center';
+        context.textBaseline = 'alphabetic';
+        context.fillStyle = '#ffffff';
+        context.font = `900 ${width * 0.06}px ${displayFontFamily}`;
+        context.fillText(
+            `EDC DAY ${dayNumber} - ${activeDay.toUpperCase()}`,
+            width / 2,
+            titleY,
+        );
+
+        stages.forEach((stage, index) => {
+            const x =
+                padding +
+                timeColumnWidth +
+                gap +
+                index * (stageColumnWidth + gap);
+
+            context.globalAlpha = 1;
+            context.fillStyle = stage.color;
+            drawRoundedRect(
+                context,
+                x,
+                headerY,
+                stageColumnWidth,
+                headerHeight,
+                width * 0.006,
+            );
+            context.fill();
+
+            context.fillStyle = 'rgba(0,0,0,0.75)';
+            context.font = `900 ${Math.max(width * 0.016 * denseFontScale, 11)}px ${displayFontFamily}`;
+            drawWrappedText({
+                context,
+                text: stage.name.toUpperCase(),
+                x: x + stageColumnWidth / 2,
+                y: headerY + headerHeight / 2,
+                maxWidth: stageColumnWidth * 0.92,
+                lineHeight: Math.max(width * 0.018 * denseFontScale, 12),
+                maxLines: 3,
+            });
+        });
+
+        if (hasMeetups) {
+            const x =
+                padding +
+                timeColumnWidth +
+                gap +
+                stages.length * (stageColumnWidth + gap);
+
+            context.globalAlpha = 1;
+            context.fillStyle = meetupColor;
+            drawRoundedRect(
+                context,
+                x,
+                headerY,
+                stageColumnWidth,
+                headerHeight,
+                width * 0.006,
+            );
+            context.fill();
+
+            context.fillStyle = 'rgba(0,0,0,0.75)';
+            context.font = `900 ${Math.max(width * 0.016 * denseFontScale, 11)}px ${displayFontFamily}`;
+            drawWrappedText({
+                context,
+                text: 'MEETUPS',
+                x: x + stageColumnWidth / 2,
+                y: headerY + headerHeight / 2,
+                maxWidth: stageColumnWidth * 0.92,
+                lineHeight: Math.max(width * 0.018 * denseFontScale, 12),
+                maxLines: 2,
+            });
+        }
+
+        context.textAlign = 'center';
+        context.fillStyle = 'rgba(255,255,255,0.9)';
+        context.font = `900 ${Math.max(width * 0.017, 12)}px ${displayFontFamily}`;
+        hourLabels.forEach((label, index) => {
+            const y =
+                bodyY +
+                (index / (hourLabels.length - 1)) * bodyHeight +
+                height * 0.004;
+            const [hour, minute] = label.split(':');
+            const x = padding + timeColumnWidth * 0.48;
+            const lineHeight = Math.max(width * 0.015, 10);
+
+            context.fillText(hour, x, y);
+            context.fillText(minute, x, y + lineHeight);
+        });
+
+        stages.forEach((stage, index) => {
+            const x =
+                padding +
+                timeColumnWidth +
+                gap +
+                index * (stageColumnWidth + gap);
+
+            sets
+                .filter(
+                    (set) =>
+                        set.day === activeDay && set.stageId === stage.id,
+                )
+                .forEach((set) => {
+                    const start = getScheduleMinute(set.startTime);
+                    let end = getScheduleMinute(set.endTime);
+
+                    if (end <= start) {
+                        end += 24 * 60;
+                    }
+
+                    const y =
+                        bodyY +
+                        ((start - scheduleStartMinutes) / scheduleDuration) *
+                            bodyHeight;
+                    const blockHeight = Math.max(
+                        ((end - start) / scheduleDuration) * bodyHeight,
+                        height * 0.038,
+                    );
+                    const isWanted = isVisiblePick(set.id);
+
+                    context.globalAlpha = isWanted ? 1 : 0.35;
+                    context.fillStyle = stage.color;
+                    drawRoundedRect(
+                        context,
+                        x,
+                        y,
+                        stageColumnWidth,
+                        blockHeight - gap,
+                        width * 0.01,
+                    );
+                    context.fill();
+                    context.globalAlpha = 1;
+
+                    context.save();
+                    drawRoundedRect(
+                        context,
+                        x,
+                        y,
+                        stageColumnWidth,
+                        blockHeight - gap,
+                        width * 0.01,
+                    );
+                    context.clip();
+                    context.textAlign = 'center';
+                    context.fillStyle = 'rgba(0,0,0,0.86)';
+                    context.font = `900 ${Math.max(width * 0.015 * denseFontScale, 10)}px ${displayFontFamily}`;
+                    drawWrappedText({
+                        context,
+                        text: set.artist.toUpperCase(),
+                        x: x + stageColumnWidth / 2,
+                        y: y + blockHeight * 0.42,
+                        maxWidth: stageColumnWidth * 0.9,
+                        lineHeight: Math.max(width * 0.0165 * denseFontScale, 11),
+                        maxLines: blockHeight < height * 0.055 ? 2 : 3,
+                    });
+
+                    context.fillStyle = 'rgba(0,0,0,0.62)';
+                    context.font = `900 ${Math.max(width * 0.012 * denseFontScale, 8)}px ${displayFontFamily}`;
+                    context.fillText(
+                        `${getDisplayTime(set.startTime)} - ${getDisplayTime(set.endTime)}`,
+                        x + stageColumnWidth / 2,
+                        y + blockHeight * 0.68,
+                        stageColumnWidth * 0.92,
+                    );
+                    context.restore();
+                });
+        });
+
+        if (hasMeetups) {
+            const x =
+                padding +
+                timeColumnWidth +
+                gap +
+                stages.length * (stageColumnWidth + gap);
+
+            visibleMeetups.forEach((meetup) => {
+                const start = getScheduleMinute(meetup.startTime);
+                let end = getScheduleMinute(meetup.endTime);
+
+                if (end <= start) {
+                    end += 24 * 60;
+                }
+
+                const y =
+                    bodyY +
+                    ((start - scheduleStartMinutes) / scheduleDuration) *
+                        bodyHeight;
+                const blockHeight = Math.max(
+                    ((end - start) / scheduleDuration) * bodyHeight,
+                    height * 0.038,
+                );
+
+                context.globalAlpha = 1;
+                context.fillStyle = meetupColor;
+                drawRoundedRect(
+                    context,
+                    x,
+                    y,
+                    stageColumnWidth,
+                    blockHeight - gap,
+                    width * 0.01,
+                );
+                context.fill();
+
+                context.save();
+                drawRoundedRect(
+                    context,
+                    x,
+                    y,
+                    stageColumnWidth,
+                    blockHeight - gap,
+                    width * 0.01,
+                );
+                context.clip();
+                context.textAlign = 'center';
+                context.fillStyle = 'rgba(0,0,0,0.86)';
+                context.font = `900 ${Math.max(width * 0.015 * denseFontScale, 10)}px ${displayFontFamily}`;
+                drawWrappedText({
+                    context,
+                    text: meetup.title.toUpperCase(),
+                    x: x + stageColumnWidth / 2,
+                    y: y + blockHeight * 0.34,
+                    maxWidth: stageColumnWidth * 0.9,
+                    lineHeight: Math.max(width * 0.0165 * denseFontScale, 11),
+                    maxLines: blockHeight < height * 0.055 ? 2 : 3,
+                });
+
+                if (meetup.location) {
+                    context.fillStyle = 'rgba(0,0,0,0.72)';
+                    context.font = `900 ${Math.max(width * 0.011 * denseFontScale, 8)}px ${displayFontFamily}`;
+                    drawWrappedText({
+                        context,
+                        text: meetup.location.toUpperCase(),
+                        x: x + stageColumnWidth / 2,
+                        y: y + blockHeight * 0.59,
+                        maxWidth: stageColumnWidth * 0.9,
+                        lineHeight: Math.max(width * 0.012 * denseFontScale, 8),
+                        maxLines: 2,
+                    });
+                }
+
+                context.fillStyle = 'rgba(0,0,0,0.62)';
+                context.font = `900 ${Math.max(width * 0.012 * denseFontScale, 8)}px ${displayFontFamily}`;
+                context.fillText(
+                    `${getDisplayTime(meetup.startTime)} - ${getDisplayTime(meetup.endTime)}`,
+                    x + stageColumnWidth / 2,
+                    y + blockHeight * 0.78,
+                    stageColumnWidth * 0.92,
+                );
+                context.restore();
+            });
+        }
+
+        canvas.toBlob((blob) => {
+            if (!blob) {
+                setDownloadStatus('Could not export wallpaper.');
+                return;
+            }
+
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+
+            link.href = url;
+            link.download = `edc-${activeDay.toLowerCase()}-wallpaper.png`;
+            link.click();
+            URL.revokeObjectURL(url);
+            setDownloadStatus(`Downloaded ${width}x${height} wallpaper.`);
+        }, 'image/png');
     };
 
     return (
-        <Box className='overflow-x-auto rounded-3xl bg-black p-4 shadow-2xl sm:p-7'>
-            <Box
-                className='min-w-245 bg-black text-white'
-                style={{
-                    gridTemplateColumns: `56px repeat(${Math.max(stages.length, 1)}, minmax(96px, 1fr))`,
-                }}>
-                <Text className='mb-9 text-center text-5xl font-black uppercase text-white sm:text-6xl'>
-                    EDC DAY {dayNumber} -- {activeDay}
+        <Box className='mx-auto flex w-full max-w-107.5 flex-col gap-3 sm:max-w-130'>
+            <Box className='rounded-[1.75rem] bg-black p-1.5 shadow-2xl sm:p-2'>
+                <Box className='relative aspect-9/19.5 w-full overflow-hidden rounded-[1.35rem] bg-black px-1.5 pb-2 pt-3 text-white sm:px-2 sm:pt-4'>
+                <Text className='h-[5%] whitespace-nowrap text-center text-[clamp(0.92rem,5vw,1.8rem)] font-black uppercase leading-none text-white'>
+                    EDC DAY {dayNumber} - {activeDay}
                 </Text>
 
                 <Box
-                    className='grid gap-1.5'
+                    className='grid h-[6.5%] gap-0.5'
                     style={{
-                        gridTemplateColumns: `56px repeat(${Math.max(stages.length, 1)}, minmax(96px, 1fr))`,
+                        gridTemplateColumns: `6% repeat(${calendarColumnCount}, minmax(0, 1fr))`,
                     }}>
                     <Box />
                     {stages.map((stage) => (
                         <Box
-                            className='flex min-h-20 items-center justify-center rounded-t-sm px-2 text-center'
+                            className='flex min-w-0 items-center justify-center rounded-t-md px-0.5 text-center'
                             key={stage.id}
                             style={{ backgroundColor: stage.color }}>
-                            <Text className='text-lg font-bold leading-6 text-black/75'>
+                            <Text
+                                className={`wrap-break-word font-black uppercase text-black/75 ${
+                                    isDense
+                                        ? 'text-[0.34rem] leading-[0.42rem] sm:text-[0.44rem] sm:leading-[0.52rem]'
+                                        : 'text-[0.48rem] leading-[0.58rem] sm:text-[0.62rem] sm:leading-[0.72rem]'
+                                }`}>
                                 {stage.name}
                             </Text>
                         </Box>
                     ))}
+                    {hasMeetups ? (
+                        <Box
+                            className='flex min-w-0 items-center justify-center rounded-t-md px-0.5 text-center'
+                            style={{ backgroundColor: meetupColor }}>
+                            <Text
+                                className={`wrap-break-word font-black uppercase text-black/75 ${
+                                    isDense
+                                        ? 'text-[0.34rem] leading-[0.42rem] sm:text-[0.44rem] sm:leading-[0.52rem]'
+                                        : 'text-[0.48rem] leading-[0.58rem] sm:text-[0.62rem] sm:leading-[0.72rem]'
+                                }`}>
+                                Meetups
+                            </Text>
+                        </Box>
+                    ) : null}
                 </Box>
 
                 <Box
-                    className='grid gap-1.5'
+                    className='grid h-[88.5%] gap-0.5'
                     style={{
-                        gridTemplateColumns: `56px repeat(${Math.max(stages.length, 1)}, minmax(96px, 1fr))`,
+                        gridTemplateColumns: `6% repeat(${calendarColumnCount}, minmax(0, 1fr))`,
                     }}>
-                    <Box
-                        className='relative'
-                        style={{ height: calendarHeight }}>
+                    <Box className='relative'>
                         {hourLabels.map((label, index) => (
                             <Box
                                 className='absolute left-0 right-0'
                                 key={label}
-                                style={{ top: index * hourHeight }}>
-                                <Text className='absolute -top-1 right-3 text-base font-semibold text-white/90'>
+                                style={{
+                                    top: `${(index / (hourLabels.length - 1)) * 100}%`,
+                                }}>
+                                <Text className='absolute right-0 translate-y-1 text-[0.34rem] font-bold leading-none text-white/90 sm:text-[0.46rem]'>
                                     {label}
                                 </Text>
                             </Box>
@@ -118,14 +536,15 @@ export default function ScreenshotCalendar({
 
                     {stages.map((stage) => (
                         <Box
-                            className='relative'
-                            key={stage.id}
-                            style={{ height: calendarHeight }}>
+                            className='relative min-w-0'
+                            key={stage.id}>
                             {hourLabels.map((label, index) => (
                                 <Box
                                     className='absolute left-0 right-0'
                                     key={`${stage.id}-${label}`}
-                                    style={{ top: index * hourHeight }}
+                                    style={{
+                                        top: `${(index / (hourLabels.length - 1)) * 100}%`,
+                                    }}
                                 />
                             ))}
                             {sets
@@ -145,20 +564,19 @@ export default function ScreenshotCalendar({
                                     }
 
                                     const top =
-                                        ((start - scheduleStartMinutes) / 60) *
-                                        hourHeight;
+                                        ((start - scheduleStartMinutes) /
+                                            scheduleDuration) *
+                                        100;
                                     const height = Math.max(
-                                        ((end - start) / 60) * hourHeight - 3,
-                                        58,
+                                        ((end - start) / scheduleDuration) *
+                                            100,
+                                        4.5,
                                     );
-                                    const visibleMembers = getVisibleMembers(
-                                        set.id,
-                                    );
-                                    const isWanted = visibleMembers.length > 0;
+                                    const isWanted = isVisiblePick(set.id);
 
                                     return (
                                         <Box
-                                            className={`absolute left-0 right-0 flex flex-col items-center justify-center overflow-hidden rounded-lg border-2 border-black px-2 py-2 text-center text-black transition ${
+                                            className={`absolute left-0 right-0 flex flex-col items-center justify-center overflow-hidden rounded-[0.28rem] border border-black px-0.5 py-0.5 text-center text-black transition ${
                                                 isWanted
                                                     ? 'opacity-100'
                                                     : 'opacity-35 grayscale'
@@ -166,36 +584,116 @@ export default function ScreenshotCalendar({
                                             key={set.id}
                                             style={{
                                                 backgroundColor: stage.color,
-                                                top,
-                                                height,
+                                                top: `${top}%`,
+                                                height: `${height}%`,
                                             }}>
-                                            <Text className='text-[0.72rem] font-black uppercase leading-4 sm:text-sm'>
+                                            <Text
+                                                className={`max-w-full wrap-break-word font-black uppercase ${
+                                                    isDense
+                                                        ? 'text-[0.32rem] leading-[0.38rem] sm:text-[0.42rem] sm:leading-[0.48rem]'
+                                                        : 'text-[0.42rem] leading-2 sm:text-[0.58rem] sm:leading-[0.66rem]'
+                                                }`}>
                                                 {set.artist}
                                             </Text>
-                                            <Text className='mt-1 text-[0.58rem] font-bold leading-3 text-black/65'>
+                                            <Text
+                                                className={`mt-0.5 font-bold leading-none text-black/65 ${
+                                                    isDense
+                                                        ? 'text-[0.25rem] sm:text-[0.34rem]'
+                                                        : 'text-[0.32rem] sm:text-[0.42rem]'
+                                                }`}>
                                                 {getDisplayTime(set.startTime)}{' '}
                                                 - {getDisplayTime(set.endTime)}
                                             </Text>
-                                            {visibleMembers.length ? (
-                                                <BoxRow className='mt-1 flex-wrap justify-center gap-1'>
-                                                    {visibleMembers
-                                                        .slice(0, 5)
-                                                        .map((member) => (
-                                                            <Avatar
-                                                                key={member.uid}
-                                                                member={member}
-                                                                size='sm'
-                                                            />
-                                                        ))}
-                                                </BoxRow>
-                                            ) : null}
                                         </Box>
                                     );
                                 })}
                         </Box>
                     ))}
+                    {hasMeetups ? (
+                        <Box className='relative min-w-0'>
+                            {hourLabels.map((label, index) => (
+                                <Box
+                                    className='absolute left-0 right-0'
+                                    key={`meetups-${label}`}
+                                    style={{
+                                        top: `${(index / (hourLabels.length - 1)) * 100}%`,
+                                    }}
+                                />
+                            ))}
+                            {visibleMeetups.map((meetup) => {
+                                const start = getScheduleMinute(
+                                    meetup.startTime,
+                                );
+                                let end = getScheduleMinute(meetup.endTime);
+
+                                if (end <= start) {
+                                    end += 24 * 60;
+                                }
+
+                                const top =
+                                    ((start - scheduleStartMinutes) /
+                                        scheduleDuration) *
+                                    100;
+                                const height = Math.max(
+                                    ((end - start) / scheduleDuration) * 100,
+                                    4.5,
+                                );
+
+                                return (
+                                    <Box
+                                        className='absolute left-0 right-0 flex flex-col items-center justify-center overflow-hidden rounded-[0.28rem] border border-black px-0.5 py-0.5 text-center text-black'
+                                        key={meetup.id}
+                                        style={{
+                                            backgroundColor: meetupColor,
+                                            top: `${top}%`,
+                                            height: `${height}%`,
+                                        }}>
+                                        <Text
+                                            className={`max-w-full wrap-break-word font-black uppercase ${
+                                                isDense
+                                                    ? 'text-[0.32rem] leading-[0.38rem] sm:text-[0.42rem] sm:leading-[0.48rem]'
+                                                    : 'text-[0.42rem] leading-2 sm:text-[0.58rem] sm:leading-[0.66rem]'
+                                            }`}>
+                                            {meetup.title}
+                                        </Text>
+                                        {meetup.location ? (
+                                            <Text
+                                                className={`mt-0.5 max-w-full wrap-break-word font-bold uppercase text-black/70 ${
+                                                    isDense
+                                                        ? 'text-[0.24rem] leading-[0.3rem] sm:text-[0.32rem] sm:leading-[0.38rem]'
+                                                        : 'text-[0.3rem] leading-[0.36rem] sm:text-[0.38rem] sm:leading-[0.46rem]'
+                                                }`}>
+                                                {meetup.location}
+                                            </Text>
+                                        ) : null}
+                                        <Text
+                                            className={`mt-0.5 font-bold leading-none text-black/65 ${
+                                                isDense
+                                                    ? 'text-[0.25rem] sm:text-[0.34rem]'
+                                                    : 'text-[0.32rem] sm:text-[0.42rem]'
+                                            }`}>
+                                            {getDisplayTime(meetup.startTime)} -{' '}
+                                            {getDisplayTime(meetup.endTime)}
+                                        </Text>
+                                    </Box>
+                                );
+                            })}
+                        </Box>
+                    ) : null}
                 </Box>
             </Box>
+            </Box>
+            <button
+                className='w-full rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:bg-cyan-50'
+                onClick={downloadWallpaper}
+                type='button'>
+                Download wallpaper
+            </button>
+            {downloadStatus ? (
+                <Text className='text-center text-sm text-white/62'>
+                    {downloadStatus}
+                </Text>
+            ) : null}
         </Box>
     );
 }

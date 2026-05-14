@@ -52,6 +52,16 @@ service cloud.firestore {
         allow read, create, update: if isGroupMember(groupId);
         allow delete: if isGroupMember(groupId);
       }
+
+      match /meetups/{meetupId} {
+        allow read: if isGroupMember(groupId);
+        allow create: if isGroupMember(groupId)
+          && request.resource.data.createdBy == request.auth.uid;
+        allow update: if isGroupMember(groupId)
+          && resource.data.createdBy == request.auth.uid
+          && request.resource.data.createdBy == request.auth.uid;
+        allow delete: if isGroupMember(groupId);
+      }
     }
   }
 }

@@ -44,13 +44,13 @@ export default function AuthPanel() {
     };
 
     return (
-        <BoxColumn className='mx-auto min-h-screen w-full max-w-4xl justify-center gap-6 px-5 py-12 text-white sm:px-8'>
-            <BoxColumn className='gap-6 rounded-3xl border border-white/10 bg-black/40 p-6 backdrop-blur-md sm:p-8'>
+        <BoxColumn className='mx-auto min-h-screen w-full max-w-4xl justify-center gap-6 overflow-x-hidden px-3 py-8 text-white sm:px-8 sm:py-12'>
+            <BoxColumn className='gap-6 rounded-2xl border border-white/10 bg-black/40 p-4 backdrop-blur-md sm:rounded-3xl sm:p-8'>
                 <BoxColumn className='gap-3'>
                     <Text className='text-sm font-semibold uppercase tracking-[0.3em] text-white/55'>
                         EDC planner
                     </Text>
-                    <Text className='text-4xl font-semibold tracking-tight sm:text-6xl'>
+                    <Text className='text-3xl font-semibold tracking-tight sm:text-6xl'>
                         Pick sets with your crew
                     </Text>
                     <Text className='max-w-2xl text-base leading-8 text-white/72'>
@@ -76,21 +76,21 @@ export default function AuthPanel() {
                     />
                 </BoxColumn>
 
-                <BoxRow className='flex-wrap gap-3'>
+                <BoxRow className='flex-col gap-3 sm:flex-row sm:flex-wrap'>
                     <button
-                        className='rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:bg-cyan-50'
+                        className='w-full rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:bg-cyan-50 sm:w-auto'
                         onClick={signInWithEmail}
                         type='button'>
                         Sign in
                     </button>
                     <button
-                        className='rounded-full border border-white/15 bg-white/8 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/14'
+                        className='w-full rounded-full border border-white/15 bg-white/8 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/14 sm:w-auto'
                         onClick={createAccount}
                         type='button'>
                         Create account
                     </button>
                     <button
-                        className='rounded-full border border-white/15 bg-white/8 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/14'
+                        className='w-full rounded-full border border-white/15 bg-white/8 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/14 sm:w-auto'
                         onClick={signInGoogle}
                         type='button'>
                         Continue with Google

@@ -16,7 +16,13 @@ import { Check, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import Avatar from './Avatar';
 import ScreenshotCalendar from './ScreenshotCalendar';
-import type { FestivalSet, GroupMember, Selection, Stage } from './types';
+import type {
+    FestivalSet,
+    GroupMember,
+    Meetup,
+    Selection,
+    Stage,
+} from './types';
 import { festivalId, getFriendlyError, sortStages, stageColors } from './utils';
 
 export default function ScheduleBoard({
@@ -30,12 +36,14 @@ export default function ScheduleBoard({
 }) {
     const [stages, setStages] = useState<Stage[]>([]);
     const [sets, setSets] = useState<FestivalSet[]>([]);
+    const [meetups, setMeetups] = useState<Meetup[]>([]);
     const [members, setMembers] = useState<GroupMember[]>([]);
     const [selections, setSelections] = useState<Record<string, Selection>>({});
     const [activeDay, setActiveDay] = useState('Friday');
     const [friendFilter, setFriendFilter] = useState('all');
-    const [onlyMine, setOnlyMine] = useState(false);
-    const [viewMode, setViewMode] = useState<'pick' | 'screenshot'>('pick');
+    const [viewMode, setViewMode] = useState<
+        'pick' | 'friends' | 'screenshot'
+    >('pick');
     const [scheduleError, setScheduleError] = useState('');
 
     useEffect(() => {
@@ -118,6 +126,38 @@ export default function ScheduleBoard({
         }
 
         return onSnapshot(
+            query(
+                collection(firestore, 'groups', activeGroupId, 'meetups'),
+                orderBy('startTime'),
+            ),
+            (snapshot) => {
+                setMeetups(
+                    snapshot.docs.map((meetupDoc) => ({
+                        id: meetupDoc.id,
+                        title: meetupDoc.data().title ?? '',
+                        location: meetupDoc.data().location ?? '',
+                        day: meetupDoc.data().day ?? 'Friday',
+                        startTime: meetupDoc.data().startTime ?? '',
+                        endTime: meetupDoc.data().endTime ?? '',
+                        createdBy: meetupDoc.data().createdBy ?? '',
+                        createdByName: meetupDoc.data().createdByName ?? '',
+                    })),
+                );
+            },
+            (error) => {
+                setScheduleError(
+                    `Could not load meetups: ${getFriendlyError(error)}`,
+                );
+            },
+        );
+    }, [activeGroupId]);
+
+    useEffect(() => {
+        if (!activeGroupId) {
+            return;
+        }
+
+        return onSnapshot(
             collection(firestore, 'groups', activeGroupId, 'setSelections'),
             (snapshot) => {
                 setSelections(
@@ -141,9 +181,14 @@ export default function ScheduleBoard({
     );
 
     const days = useMemo(() => {
-        const setDays = Array.from(new Set(sets.map((set) => set.day)));
+        const setDays = Array.from(
+            new Set([
+                ...sets.map((set) => set.day),
+                ...meetups.map((meetup) => meetup.day),
+            ]),
+        );
         return setDays.length ? setDays : ['Friday', 'Saturday', 'Sunday'];
-    }, [sets]);
+    }, [meetups, sets]);
 
     const visibleSets = useMemo(() => {
         return sets.filter((set) => {
@@ -153,7 +198,7 @@ export default function ScheduleBoard({
                 return false;
             }
 
-            if (onlyMine && !selectedUserIds.includes(currentUserId)) {
+            if (viewMode === 'friends' && selectedUserIds.length === 0) {
                 return false;
             }
 
@@ -166,7 +211,19 @@ export default function ScheduleBoard({
 
             return true;
         });
-    }, [activeDay, currentUserId, friendFilter, onlyMine, selections, sets]);
+    }, [
+        activeDay,
+        currentUserId,
+        friendFilter,
+        selections,
+        sets,
+        viewMode,
+    ]);
+
+    const visibleMeetups = useMemo(
+        () => meetups.filter((meetup) => meetup.day === activeDay),
+        [activeDay, meetups],
+    );
 
     const toggleSet = async (setId: string) => {
         const selectionRef = doc(
@@ -194,8 +251,14 @@ export default function ScheduleBoard({
         await deleteDoc(doc(firestore, 'festivals', festivalId, 'sets', setId));
     };
 
+    const removeMeetup = async (meetupId: string) => {
+        await deleteDoc(
+            doc(firestore, 'groups', activeGroupId, 'meetups', meetupId),
+        );
+    };
+
     return (
-        <BoxColumn className='gap-5 rounded-3xl border border-white/10 bg-black/35 p-5 backdrop-blur-md'>
+        <BoxColumn className='min-w-0 gap-5 rounded-2xl border border-white/10 bg-black/35 p-4 backdrop-blur-md sm:rounded-3xl sm:p-5'>
             <BoxRow className='flex-wrap items-center justify-between gap-4'>
                 <BoxColumn className='gap-1'>
                     <Text className='text-sm font-semibold uppercase tracking-[0.22em] text-white/45'>
@@ -204,7 +267,8 @@ export default function ScheduleBoard({
                     <Text className='text-2xl font-semibold'>Shared picks</Text>
                     <Text className='text-sm text-white/52'>
                         {sets.filter((set) => set.day === activeDay).length}{' '}
-                        sets loaded for {activeDay}
+                        sets and {visibleMeetups.length} meetups loaded for{' '}
+                        {activeDay}
                     </Text>
                 </BoxColumn>
                 <BoxRow className='flex-wrap gap-2'>
@@ -230,9 +294,9 @@ export default function ScheduleBoard({
                 </Text>
             ) : null}
 
-            <BoxRow className='flex-wrap gap-3'>
+            <BoxRow className='flex-col gap-3 sm:flex-row sm:flex-wrap'>
                 <button
-                    className={`rounded-full border px-4 py-2 text-sm font-medium transition ${
+                    className={`w-full rounded-full border px-4 py-2 text-sm font-medium transition sm:w-auto ${
                         viewMode === 'pick'
                             ? 'border-white/30 bg-white text-black'
                             : 'border-white/15 bg-white/8 text-white hover:bg-white/14'
@@ -242,7 +306,17 @@ export default function ScheduleBoard({
                     Pick view
                 </button>
                 <button
-                    className={`rounded-full border px-4 py-2 text-sm font-medium transition ${
+                    className={`w-full rounded-full border px-4 py-2 text-sm font-medium transition sm:w-auto ${
+                        viewMode === 'friends'
+                            ? 'border-white/30 bg-white text-black'
+                            : 'border-white/15 bg-white/8 text-white hover:bg-white/14'
+                    }`}
+                    onClick={() => setViewMode('friends')}
+                    type='button'>
+                    Friends view
+                </button>
+                <button
+                    className={`w-full rounded-full border px-4 py-2 text-sm font-medium transition sm:w-auto ${
                         viewMode === 'screenshot'
                             ? 'border-white/30 bg-white text-black'
                             : 'border-white/15 bg-white/8 text-white hover:bg-white/14'
@@ -251,18 +325,8 @@ export default function ScheduleBoard({
                     type='button'>
                     Screenshot view
                 </button>
-                <button
-                    className={`rounded-full border px-4 py-2 text-sm font-medium transition ${
-                        onlyMine
-                            ? 'border-white/30 bg-white text-black'
-                            : 'border-white/15 bg-white/8 text-white hover:bg-white/14'
-                    }`}
-                    onClick={() => setOnlyMine((current) => !current)}
-                    type='button'>
-                    My sets
-                </button>
                 <select
-                    className='rounded-2xl border border-white/10 bg-black/80 px-4 py-2 text-sm text-white outline-none focus:border-cyan-200/60'
+                    className='w-full rounded-2xl border border-white/10 bg-black/80 px-4 py-2 text-sm text-white outline-none focus:border-cyan-200/60 sm:w-auto'
                     onChange={(event) => setFriendFilter(event.target.value)}
                     value={friendFilter}>
                     <option value='all'>All friends</option>
@@ -279,140 +343,198 @@ export default function ScheduleBoard({
             {viewMode === 'screenshot' ? (
                 <ScreenshotCalendar
                     activeDay={activeDay}
-                    currentUserId={currentUserId}
                     days={days}
                     friendFilter={friendFilter}
-                    memberById={memberById}
-                    onlyMine={onlyMine}
+                    meetups={meetups}
                     selections={selections}
                     sets={sets}
                     stages={stages}
                 />
             ) : (
-                <Box className='grid gap-4 lg:grid-cols-2'>
-                    {stages.map((stage) => {
-                        const stageSets = visibleSets.filter(
-                            (set) => set.stageId === stage.id,
-                        );
-
-                        return (
-                            <BoxColumn
-                                className='min-h-64 gap-3 rounded-2xl border border-white/10 bg-black/25 p-4'
-                                key={stage.id}>
-                                <BoxRow className='items-center gap-3'>
-                                    <Box
-                                        className='h-4 w-4 rounded-full'
-                                        style={{ backgroundColor: stage.color }}
-                                    />
-                                    <Text className='text-lg font-semibold'>
-                                        {stage.name}
-                                    </Text>
-                                </BoxRow>
-
-                                {stageSets.length ? (
-                                    stageSets.map((set) => {
-                                        const selectedUserIds =
-                                            selections[set.id]?.userIds ?? [];
-                                        const selectedMembers = selectedUserIds
-                                            .map((userId) => memberById[userId])
-                                            .filter(Boolean);
-                                        const isSelectedByMe =
-                                            selectedUserIds.includes(
-                                                currentUserId,
-                                            );
-
-                                        return (
-                                            <Box
-                                                className={`rounded-2xl border p-4 transition ${
-                                                    selectedUserIds.length
-                                                        ? 'border-white/15 bg-white/8'
-                                                        : 'border-white/8 bg-white/3 opacity-55'
-                                                }`}
-                                                key={set.id}
-                                                style={{
-                                                    borderLeftColor:
-                                                        stage.color,
-                                                    borderLeftWidth: 5,
-                                                }}>
-                                                <BoxRow className='items-start justify-between gap-3'>
-                                                    <BoxColumn className='gap-1'>
-                                                        <Text className='text-lg font-semibold'>
-                                                            {set.artist}
-                                                        </Text>
+                <BoxColumn className='gap-4'>
+                    {visibleMeetups.length ? (
+                        <BoxColumn className='gap-3 rounded-2xl border border-cyan-200/15 bg-cyan-300/8 p-4'>
+                            <Text className='text-sm font-semibold uppercase tracking-[0.2em] text-cyan-100/70'>
+                                Meetups
+                            </Text>
+                            <Box className='grid min-w-0 gap-3 sm:grid-cols-2'>
+                                {visibleMeetups.map((meetup) => {
+                                    return (
+                                        <Box
+                                            className='rounded-2xl border border-cyan-100/15 bg-black/25 p-4'
+                                            key={meetup.id}>
+                                            <BoxRow className='min-w-0 flex-wrap items-start justify-between gap-3'>
+                                                <BoxColumn className='gap-1'>
+                                                    <Text className='break-words text-lg font-semibold'>
+                                                        {meetup.title}
+                                                    </Text>
+                                                    <Text className='text-sm text-cyan-50/70'>
+                                                        {meetup.startTime} -{' '}
+                                                        {meetup.endTime}
+                                                    </Text>
+                                                    {meetup.location ? (
                                                         <Text className='text-sm text-white/62'>
-                                                            {set.startTime} -{' '}
-                                                            {set.endTime}
+                                                            {meetup.location}
                                                         </Text>
-                                                    </BoxColumn>
-                                                    <BoxRow className='gap-2'>
-                                                        <button
-                                                            className={`inline-flex h-9 w-9 items-center justify-center rounded-full border transition ${
-                                                                isSelectedByMe
-                                                                    ? 'border-emerald-200/50 bg-emerald-300/20 text-emerald-100'
-                                                                    : 'border-white/15 bg-white/8 text-white hover:bg-white/14'
-                                                            }`}
-                                                            onClick={() =>
-                                                                toggleSet(
-                                                                    set.id,
-                                                                )
-                                                            }
-                                                            title='Toggle my pick'
-                                                            type='button'>
-                                                            <Check className='h-4 w-4' />
-                                                        </button>
-                                                        {isAdmin ? (
+                                                    ) : null}
+                                                    <Text className='text-xs text-white/45'>
+                                                        Added by{' '}
+                                                        {meetup.createdByName ||
+                                                            'a group member'}
+                                                    </Text>
+                                                </BoxColumn>
+                                                <button
+                                                    className='inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-white/8 text-white transition hover:bg-red-400/20'
+                                                    onClick={() =>
+                                                        removeMeetup(meetup.id)
+                                                    }
+                                                    title='Delete meetup'
+                                                    type='button'>
+                                                    <Trash2 className='h-4 w-4' />
+                                                </button>
+                                            </BoxRow>
+                                        </Box>
+                                    );
+                                })}
+                            </Box>
+                        </BoxColumn>
+                    ) : null}
+
+                    <Box className='grid min-w-0 gap-4 lg:grid-cols-2'>
+                        {stages.map((stage) => {
+                            const stageSets = visibleSets.filter(
+                                (set) => set.stageId === stage.id,
+                            );
+
+                            return (
+                                <BoxColumn
+                                    className='min-h-64 gap-3 rounded-2xl border border-white/10 bg-black/25 p-4'
+                                    key={stage.id}>
+                                    <BoxRow className='items-center gap-3'>
+                                        <Box
+                                            className='h-4 w-4 rounded-full'
+                                            style={{
+                                                backgroundColor: stage.color,
+                                            }}
+                                        />
+                                        <Text className='text-lg font-semibold'>
+                                            {stage.name}
+                                        </Text>
+                                    </BoxRow>
+
+                                    {stageSets.length ? (
+                                        stageSets.map((set) => {
+                                            const selectedUserIds =
+                                                selections[set.id]?.userIds ??
+                                                [];
+                                            const selectedMembers =
+                                                selectedUserIds
+                                                    .map(
+                                                        (userId) =>
+                                                            memberById[userId],
+                                                    )
+                                                    .filter(Boolean);
+                                            const isSelectedByMe =
+                                                selectedUserIds.includes(
+                                                    currentUserId,
+                                                );
+
+                                            return (
+                                                <Box
+                                                    className={`rounded-2xl border p-4 transition ${
+                                                        selectedUserIds.length
+                                                            ? 'border-white/15 bg-white/8'
+                                                            : 'border-white/8 bg-white/3 opacity-55'
+                                                    }`}
+                                                    key={set.id}
+                                                    style={{
+                                                        borderLeftColor:
+                                                            stage.color,
+                                                        borderLeftWidth: 5,
+                                                    }}>
+                                                    <BoxRow className='min-w-0 flex-wrap items-start justify-between gap-3'>
+                                                        <BoxColumn className='gap-1'>
+                                                            <Text className='break-words text-lg font-semibold'>
+                                                                {set.artist}
+                                                            </Text>
+                                                            <Text className='text-sm text-white/62'>
+                                                                {set.startTime}{' '}
+                                                                - {set.endTime}
+                                                            </Text>
+                                                        </BoxColumn>
+                                                        <BoxRow className='gap-2'>
                                                             <button
-                                                                className='inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-white/8 text-white transition hover:bg-red-400/20'
+                                                                className={`inline-flex h-9 w-9 items-center justify-center rounded-full border transition ${
+                                                                    isSelectedByMe
+                                                                        ? 'border-emerald-200/50 bg-emerald-300/20 text-emerald-100'
+                                                                        : 'border-white/15 bg-white/8 text-white hover:bg-white/14'
+                                                                }`}
                                                                 onClick={() =>
-                                                                    removeSet(
+                                                                    toggleSet(
                                                                         set.id,
                                                                     )
                                                                 }
-                                                                title='Delete set'
+                                                                title='Toggle my pick'
                                                                 type='button'>
-                                                                <Trash2 className='h-4 w-4' />
+                                                                <Check className='h-4 w-4' />
                                                             </button>
-                                                        ) : null}
+                                                            {isAdmin ? (
+                                                                <button
+                                                                    className='inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-white/8 text-white transition hover:bg-red-400/20'
+                                                                    onClick={() =>
+                                                                        removeSet(
+                                                                            set.id,
+                                                                        )
+                                                                    }
+                                                                    title='Delete set'
+                                                                    type='button'>
+                                                                    <Trash2 className='h-4 w-4' />
+                                                                </button>
+                                                            ) : null}
+                                                        </BoxRow>
                                                     </BoxRow>
-                                                </BoxRow>
 
-                                                {selectedMembers.length ? (
-                                                    <BoxRow className='mt-4 flex-wrap gap-2'>
-                                                        {selectedMembers.map(
-                                                            (member) => (
-                                                                <Avatar
-                                                                    key={
-                                                                        member.uid
-                                                                    }
-                                                                    member={
-                                                                        member
-                                                                    }
-                                                                    size='sm'
-                                                                />
-                                                            ),
-                                                        )}
-                                                    </BoxRow>
-                                                ) : (
-                                                    <Text className='mt-4 text-sm text-white/45'>
-                                                        No one has picked this
-                                                        yet.
-                                                    </Text>
-                                                )}
-                                            </Box>
-                                        );
-                                    })
-                                ) : (
-                                    <Text className='rounded-2xl border border-white/8 bg-white/3 p-4 text-sm text-white/45'>
-                                        No sets for this stage on {activeDay}
-                                        {onlyMine || friendFilter !== 'all'
-                                            ? ' with the current filters.'
-                                            : '.'}
-                                    </Text>
-                                )}
-                            </BoxColumn>
-                        );
-                    })}
-                </Box>
+                                                    {selectedMembers.length ? (
+                                                        <BoxRow className='mt-4 flex-wrap gap-2'>
+                                                            {selectedMembers.map(
+                                                                (member) => (
+                                                                    <Avatar
+                                                                        key={
+                                                                            member.uid
+                                                                        }
+                                                                        member={
+                                                                            member
+                                                                        }
+                                                                        size='sm'
+                                                                    />
+                                                                ),
+                                                            )}
+                                                        </BoxRow>
+                                                    ) : (
+                                                        <Text className='mt-4 text-sm text-white/45'>
+                                                            No one has picked
+                                                            this yet.
+                                                        </Text>
+                                                    )}
+                                                </Box>
+                                            );
+                                        })
+                                    ) : (
+                                        <Text className='rounded-2xl border border-white/8 bg-white/3 p-4 text-sm text-white/45'>
+                                            No sets for this stage on{' '}
+                                            {activeDay}
+                                            {viewMode === 'friends'
+                                                ? ' that anyone has picked.'
+                                                : friendFilter !== 'all'
+                                                  ? ' with the current filters.'
+                                                  : '.'}
+                                        </Text>
+                                    )}
+                                </BoxColumn>
+                            );
+                        })}
+                    </Box>
+                </BoxColumn>
             )}
         </BoxColumn>
     );

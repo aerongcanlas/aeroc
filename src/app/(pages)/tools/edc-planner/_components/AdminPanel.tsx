@@ -2,7 +2,6 @@ import { Box, BoxColumn, BoxRow, Text } from '@/app/_components/ui';
 import { firestore } from '@/lib/firebase';
 import {
     addDoc,
-    writeBatch,
     collection,
     doc,
     onSnapshot,
@@ -10,13 +9,14 @@ import {
     query,
     serverTimestamp,
     setDoc,
+    writeBatch,
 } from 'firebase/firestore';
 import { ArrowDown, ArrowUp, ShieldCheck } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { Stage } from './types';
 import { festivalId, getFriendlyError, sortStages, stageColors } from './utils';
 
-export default function AdminPanel({ isAdmin }: { isAdmin: boolean }) {
+export default function AdminPanel() {
     const [stageName, setStageName] = useState('');
     const [stageColor, setStageColor] = useState(stageColors[0]);
     const [artist, setArtist] = useState('');
@@ -28,34 +28,13 @@ export default function AdminPanel({ isAdmin }: { isAdmin: boolean }) {
     const [adminStatus, setAdminStatus] = useState('');
     const [adminError, setAdminError] = useState('');
     const [setJson, setSetJson] = useState(`[
-  {
+{
     "artist": "Trace",
     "stage": "Kinetic Field",
     "day": "Sunday",
     "start": "19:00",
     "end": "20:00"
-  },
-  {
-    "artist": "Ship Wrek",
-    "stage": "Kinetic Field",
-    "day": "Sunday",
-    "start": "20:00",
-    "end": "21:00"
-  },
-  {
-    "artist": "Layton Giordani",
-    "stage": "Kinetic Field",
-    "day": "Sunday",
-    "start": "21:00",
-    "end": "22:00"
-  },
-  {
-    "artist": "Funk Tribu",
-    "stage": "Kinetic Field",
-    "day": "Sunday",
-    "start": "22:07",
-    "end": "23:15"
-  }
+},
 ]`);
 
     useEffect(() => {
@@ -264,7 +243,11 @@ export default function AdminPanel({ isAdmin }: { isAdmin: boolean }) {
         );
         const targetIndex = currentIndex + direction;
 
-        if (currentIndex < 0 || targetIndex < 0 || targetIndex >= stages.length) {
+        if (
+            currentIndex < 0 ||
+            targetIndex < 0 ||
+            targetIndex >= stages.length
+        ) {
             return;
         }
 
@@ -298,25 +281,8 @@ export default function AdminPanel({ isAdmin }: { isAdmin: boolean }) {
         }
     };
 
-    if (!isAdmin) {
-        return (
-            <BoxColumn className='gap-3 rounded-3xl border border-white/10 bg-black/25 p-5 text-white/68'>
-                <BoxRow className='items-center gap-2'>
-                    <ShieldCheck className='h-4 w-4' />
-                    <Text className='text-sm font-semibold uppercase tracking-[0.2em] text-white/45'>
-                        Admin tools
-                    </Text>
-                </BoxRow>
-                <Text className='text-sm leading-7'>
-                    Admin controls are hidden until your login email is listed
-                    in NEXT_PUBLIC_EDC_ADMIN_EMAILS.
-                </Text>
-            </BoxColumn>
-        );
-    }
-
     return (
-        <BoxColumn className='gap-5 rounded-3xl border border-white/10 bg-black/35 p-5 backdrop-blur-md'>
+        <BoxColumn className='gap-5 rounded-2xl border border-white/10 bg-black/35 p-4 backdrop-blur-md sm:rounded-3xl sm:p-5'>
             <BoxRow className='items-center gap-2'>
                 <ShieldCheck className='h-5 w-5 text-emerald-200' />
                 <Text className='text-2xl font-semibold'>
@@ -328,9 +294,9 @@ export default function AdminPanel({ isAdmin }: { isAdmin: boolean }) {
                 <Text className='text-sm font-semibold uppercase tracking-[0.2em] text-white/45'>
                     Stages
                 </Text>
-                <BoxRow className='flex-wrap gap-3'>
+                <BoxRow className='flex-col gap-3 sm:flex-row sm:flex-wrap'>
                     <input
-                        className='min-w-56 flex-1 rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-white outline-none placeholder:text-white/35 focus:border-cyan-200/60'
+                        className='w-full min-w-0 flex-1 rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-white outline-none placeholder:text-white/35 focus:border-cyan-200/60 sm:min-w-56'
                         onChange={(event) => setStageName(event.target.value)}
                         placeholder='Stage name'
                         value={stageName}
@@ -343,7 +309,7 @@ export default function AdminPanel({ isAdmin }: { isAdmin: boolean }) {
                         value={stageColor}
                     />
                     <button
-                        className='rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:bg-cyan-50'
+                        className='w-full rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:bg-cyan-50 sm:w-auto'
                         onClick={addStage}
                         type='button'>
                         Add stage
@@ -353,7 +319,7 @@ export default function AdminPanel({ isAdmin }: { isAdmin: boolean }) {
                     <BoxColumn className='gap-2 pt-2'>
                         {stages.map((stage, index) => (
                             <BoxRow
-                                className='items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 px-3 py-2'
+                                className='min-w-0 items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 px-3 py-2'
                                 key={stage.id}>
                                 <BoxRow className='min-w-0 items-center gap-3'>
                                     <Box
@@ -392,15 +358,15 @@ export default function AdminPanel({ isAdmin }: { isAdmin: boolean }) {
                 <Text className='text-sm font-semibold uppercase tracking-[0.2em] text-white/45'>
                     Sets
                 </Text>
-                <BoxRow className='flex-wrap gap-3'>
+                <BoxRow className='flex-col gap-3 sm:flex-row sm:flex-wrap'>
                     <input
-                        className='min-w-56 flex-1 rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-white outline-none placeholder:text-white/35 focus:border-cyan-200/60'
+                        className='w-full min-w-0 flex-1 rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-white outline-none placeholder:text-white/35 focus:border-cyan-200/60 sm:min-w-56'
                         onChange={(event) => setArtist(event.target.value)}
                         placeholder='Artist'
                         value={artist}
                     />
                     <select
-                        className='rounded-2xl border border-white/10 bg-black/80 px-4 py-3 text-white outline-none focus:border-cyan-200/60'
+                        className='w-full rounded-2xl border border-white/10 bg-black/80 px-4 py-3 text-white outline-none focus:border-cyan-200/60 sm:w-auto'
                         onChange={(event) => setDay(event.target.value)}
                         value={day}>
                         <option>Friday</option>
@@ -408,7 +374,7 @@ export default function AdminPanel({ isAdmin }: { isAdmin: boolean }) {
                         <option>Sunday</option>
                     </select>
                     <select
-                        className='rounded-2xl border border-white/10 bg-black/80 px-4 py-3 text-white outline-none focus:border-cyan-200/60'
+                        className='w-full rounded-2xl border border-white/10 bg-black/80 px-4 py-3 text-white outline-none focus:border-cyan-200/60 sm:w-auto'
                         onChange={(event) => setStageId(event.target.value)}
                         value={stageId}>
                         {stages.map((stage) => (
@@ -420,19 +386,19 @@ export default function AdminPanel({ isAdmin }: { isAdmin: boolean }) {
                         ))}
                     </select>
                     <input
-                        className='rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-white outline-none focus:border-cyan-200/60'
+                        className='w-full rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-white outline-none focus:border-cyan-200/60 sm:w-auto'
                         onChange={(event) => setStartTime(event.target.value)}
                         type='time'
                         value={startTime}
                     />
                     <input
-                        className='rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-white outline-none focus:border-cyan-200/60'
+                        className='w-full rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-white outline-none focus:border-cyan-200/60 sm:w-auto'
                         onChange={(event) => setEndTime(event.target.value)}
                         type='time'
                         value={endTime}
                     />
                     <button
-                        className='rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:bg-cyan-50'
+                        className='w-full rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:bg-cyan-50 sm:w-auto'
                         onClick={addSet}
                         type='button'>
                         Add set
@@ -445,13 +411,13 @@ export default function AdminPanel({ isAdmin }: { isAdmin: boolean }) {
                     JSON import
                 </Text>
                 <textarea
-                    className='min-h-72 resize-y rounded-2xl border border-white/10 bg-black/35 p-4 font-mono text-sm leading-6 text-white outline-none placeholder:text-white/35 focus:border-cyan-200/60'
+                    className='min-h-72 w-full resize-y rounded-2xl border border-white/10 bg-black/35 p-4 font-mono text-xs leading-5 text-white outline-none placeholder:text-white/35 focus:border-cyan-200/60 sm:text-sm sm:leading-6'
                     onChange={(event) => setSetJson(event.target.value)}
                     value={setJson}
                 />
-                <BoxRow className='flex-wrap items-center gap-3'>
+                <BoxRow className='flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:items-center'>
                     <button
-                        className='rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:bg-cyan-50'
+                        className='w-full rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:bg-cyan-50 sm:w-auto'
                         onClick={importSets}
                         type='button'>
                         Import JSON sets
