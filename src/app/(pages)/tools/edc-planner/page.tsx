@@ -122,29 +122,32 @@ export default function EdcPlannerPage() {
             </BoxColumn>
 
             <Box className='grid min-w-0 gap-4 sm:gap-5 xl:grid-cols-[0.9fr_1.5fr]'>
-                <BoxColumn className='gap-5'>
+                <BoxColumn className='contents min-w-0 gap-5 xl:order-1 xl:flex'>
                     <GroupPanel
                         activeGroupId={activeGroupId}
                         profile={profile}
                         setActiveGroupId={setActiveGroupId}
                     />
                     {activeGroupId ? (
-                        <MeetupPanel
-                            activeGroupId={activeGroupId}
-                            profile={profile}
-                        />
+                        <Box className='order-3 min-w-0 xl:order-none'>
+                            <MeetupPanel
+                                activeGroupId={activeGroupId}
+                                profile={profile}
+                            />
+                        </Box>
                     ) : null}
-                    {isAdmin && <AdminPanel />}
                 </BoxColumn>
 
                 {activeGroupId ? (
-                    <ScheduleBoard
-                        activeGroupId={activeGroupId}
-                        currentUserId={user.uid}
-                        isAdmin={isAdmin}
-                    />
+                    <Box className='order-2 min-w-0 xl:order-2'>
+                        <ScheduleBoard
+                            activeGroupId={activeGroupId}
+                            currentUserId={user.uid}
+                            isAdmin={isAdmin}
+                        />
+                    </Box>
                 ) : (
-                    <BoxColumn className='justify-center gap-3 rounded-3xl border border-white/10 bg-black/25 p-8 text-white/70'>
+                    <BoxColumn className='min-w-0 justify-center gap-3 rounded-3xl border border-white/10 bg-black/25 p-8 text-white/70 xl:order-2'>
                         <Text className='text-2xl font-semibold text-white'>
                             Create or join a group first
                         </Text>
@@ -154,6 +157,11 @@ export default function EdcPlannerPage() {
                         </Text>
                     </BoxColumn>
                 )}
+                {isAdmin ? (
+                    <Box className='order-4 min-w-0 xl:order-3'>
+                        <AdminPanel />
+                    </Box>
+                ) : null}
             </Box>
         </BoxColumn>
     );

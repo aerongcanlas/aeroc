@@ -419,7 +419,7 @@ export default function ScheduleBoard({
                         </BoxColumn>
                     ) : null}
 
-                    <Box className='grid min-w-0 gap-4 lg:grid-cols-2'>
+                    <Box className='flex min-w-0 snap-x snap-mandatory gap-4 overflow-x-auto pb-2 lg:grid lg:snap-none lg:grid-cols-2 lg:overflow-visible lg:pb-0'>
                         {stages.map((stage) => {
                             const stageSets = visibleSets.filter(
                                 (set) => set.stageId === stage.id,
@@ -427,7 +427,7 @@ export default function ScheduleBoard({
 
                             return (
                                 <BoxColumn
-                                    className='min-h-64 gap-3 rounded-2xl border border-white/10 bg-black/25 p-4'
+                                    className='min-h-64 min-w-[88%] snap-start gap-3 rounded-2xl border border-white/10 bg-black/25 p-4 sm:min-w-[72%] lg:min-w-0'
                                     key={stage.id}>
                                     <BoxRow className='items-center gap-3'>
                                         <Box
