@@ -50,15 +50,23 @@ export default function ScreenshotCalendar({
     const scheduleDuration = scheduleEndMinutes - scheduleStartMinutes;
     const visibleMeetups = meetups.filter((meetup) => meetup.day === activeDay);
     const hasMeetups = visibleMeetups.length > 0;
+    const visibleStages = stages.filter((stage) =>
+        sets.some(
+            (set) =>
+                set.day === activeDay &&
+                set.stageId === stage.id &&
+                isVisiblePick(set.id),
+        ),
+    );
     const calendarColumnCount = Math.max(
-        stages.length + (hasMeetups ? 1 : 0),
+        visibleStages.length + (hasMeetups ? 1 : 0),
         1,
     );
     const isDense = calendarColumnCount >= 7;
     const displayFontFamily = 'Inter, Arial, sans-serif';
     const meetupColor = '#67e8f9';
 
-    const isVisiblePick = (setId: string) => {
+    function isVisiblePick(setId: string) {
         const selectedUserIds = selections[setId]?.userIds ?? [];
         let filteredUserIds = selectedUserIds;
 
@@ -69,7 +77,7 @@ export default function ScreenshotCalendar({
         }
 
         return filteredUserIds.length > 0;
-    };
+    }
 
     const drawRoundedRect = (
         context: CanvasRenderingContext2D,
@@ -215,7 +223,7 @@ export default function ScreenshotCalendar({
             titleY,
         );
 
-        stages.forEach((stage, index) => {
+        visibleStages.forEach((stage, index) => {
             const x =
                 padding +
                 timeColumnWidth +
@@ -252,7 +260,7 @@ export default function ScreenshotCalendar({
                 padding +
                 timeColumnWidth +
                 gap +
-                stages.length * (stageColumnWidth + gap);
+                visibleStages.length * (stageColumnWidth + gap);
 
             context.globalAlpha = 1;
             context.fillStyle = meetupColor;
@@ -295,7 +303,7 @@ export default function ScreenshotCalendar({
             context.fillText(minute, x, y + lineHeight);
         });
 
-        stages.forEach((stage, index) => {
+        visibleStages.forEach((stage, index) => {
             const x =
                 padding +
                 timeColumnWidth +
@@ -378,7 +386,7 @@ export default function ScreenshotCalendar({
                 padding +
                 timeColumnWidth +
                 gap +
-                stages.length * (stageColumnWidth + gap);
+                visibleStages.length * (stageColumnWidth + gap);
 
             visibleMeetups.forEach((meetup) => {
                 const start = getScheduleMinute(meetup.startTime);
@@ -489,7 +497,7 @@ export default function ScreenshotCalendar({
                         gridTemplateColumns: `6% repeat(${calendarColumnCount}, minmax(0, 1fr))`,
                     }}>
                     <Box />
-                    {stages.map((stage) => (
+                    {visibleStages.map((stage) => (
                         <Box
                             className='flex min-w-0 items-center justify-center rounded-t-md px-0.5 text-center'
                             key={stage.id}
@@ -540,7 +548,7 @@ export default function ScreenshotCalendar({
                         ))}
                     </Box>
 
-                    {stages.map((stage) => (
+                    {visibleStages.map((stage) => (
                         <Box
                             className='relative min-w-0'
                             key={stage.id}>
