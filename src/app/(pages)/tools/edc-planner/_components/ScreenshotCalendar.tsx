@@ -40,7 +40,13 @@ export default function ScreenshotCalendar({
         '05:00',
         '06:00',
     ];
-    const dayNumber = Math.max(days.indexOf(activeDay) + 1, 1);
+    const dayNumberByName: Record<string, number> = {
+        Friday: 1,
+        Saturday: 2,
+        Sunday: 3,
+    };
+    const dayNumber =
+        dayNumberByName[activeDay] ?? Math.max(days.indexOf(activeDay) + 1, 1);
     const scheduleDuration = scheduleEndMinutes - scheduleStartMinutes;
     const visibleMeetups = meetups.filter((meetup) => meetup.day === activeDay);
     const hasMeetups = visibleMeetups.length > 0;

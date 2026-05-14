@@ -23,7 +23,15 @@ import type {
     Selection,
     Stage,
 } from './types';
-import { festivalId, getFriendlyError, sortStages, stageColors } from './utils';
+import {
+    festivalId,
+    getFriendlyError,
+    getScheduleMinute,
+    sortStages,
+    stageColors,
+} from './utils';
+
+const dayOrder = ['Friday', 'Saturday', 'Sunday'];
 
 export default function ScheduleBoard({
     activeGroupId,
@@ -181,36 +189,47 @@ export default function ScheduleBoard({
     );
 
     const days = useMemo(() => {
-        const setDays = Array.from(
+        const loadedDays = Array.from(
             new Set([
                 ...sets.map((set) => set.day),
                 ...meetups.map((meetup) => meetup.day),
             ]),
         );
-        return setDays.length ? setDays : ['Friday', 'Saturday', 'Sunday'];
+        const extraDays = loadedDays
+            .filter((day) => !dayOrder.includes(day))
+            .sort((a, b) => a.localeCompare(b));
+
+        return [...dayOrder, ...extraDays];
     }, [meetups, sets]);
 
     const visibleSets = useMemo(() => {
-        return sets.filter((set) => {
-            const selectedUserIds = selections[set.id]?.userIds ?? [];
+        return sets
+            .filter((set) => {
+                const selectedUserIds = selections[set.id]?.userIds ?? [];
 
-            if (set.day !== activeDay) {
-                return false;
-            }
+                if (set.day !== activeDay) {
+                    return false;
+                }
 
-            if (viewMode === 'friends' && selectedUserIds.length === 0) {
-                return false;
-            }
+                if (viewMode === 'friends' && selectedUserIds.length === 0) {
+                    return false;
+                }
 
-            if (
-                friendFilter !== 'all' &&
-                !selectedUserIds.includes(friendFilter)
-            ) {
-                return false;
-            }
+                if (
+                    friendFilter !== 'all' &&
+                    !selectedUserIds.includes(friendFilter)
+                ) {
+                    return false;
+                }
 
-            return true;
-        });
+                return true;
+            })
+            .sort(
+                (a, b) =>
+                    getScheduleMinute(a.startTime) -
+                        getScheduleMinute(b.startTime) ||
+                    a.artist.localeCompare(b.artist),
+            );
     }, [
         activeDay,
         currentUserId,
