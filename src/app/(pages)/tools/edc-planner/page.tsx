@@ -3,7 +3,7 @@
 import { firebaseAuth, firestore } from '@/lib/firebase';
 import { onAuthStateChanged, signOut, type User } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
-import { CalendarDays, LogOut, Sparkles, Users } from 'lucide-react';
+import { CalendarDays, LogOut, Sparkles, UserPen, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Box, BoxColumn, BoxRow, Text } from '../../../_components/ui';
 import AdminPanel from './_components/AdminPanel';
@@ -26,6 +26,8 @@ export default function EdcPlannerPage() {
     const [profile, setProfile] = useState<Profile | null>(null);
     const [activeGroupId, setActiveGroupId] = useState('');
     const [profileError, setProfileError] = useState('');
+    const [showAdminView, setShowAdminView] = useState(true);
+    const [isEditingProfile, setIsEditingProfile] = useState(false);
 
     useEffect(() => {
         return onAuthStateChanged(firebaseAuth, (nextUser) => {
@@ -57,6 +59,7 @@ export default function EdcPlannerPage() {
     const isAdmin = Boolean(
         user?.email && adminEmails.includes(user.email.toLowerCase()),
     );
+    const effectiveIsAdmin = isAdmin && showAdminView;
 
     if (!user) {
         return <AuthPanel />;
@@ -109,7 +112,30 @@ export default function EdcPlannerPage() {
                     </BoxColumn>
 
                     <BoxRow className='flex-wrap items-center gap-3'>
-                        <Avatar member={profile} />
+                        {isAdmin ? (
+                            <button
+                                className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition ${
+                                    showAdminView
+                                        ? 'border-emerald-200/40 bg-emerald-300/15 text-emerald-50 hover:bg-emerald-300/20'
+                                        : 'border-white/15 bg-white/8 text-white hover:bg-white/14'
+                                }`}
+                                onClick={() =>
+                                    setShowAdminView((current) => !current)
+                                }
+                                type='button'>
+                                {showAdminView
+                                    ? 'Admin view'
+                                    : 'Non-admin view'}
+                            </button>
+                        ) : null}
+                        <button
+                            className='inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/8 px-3 py-2 text-sm font-medium text-white transition hover:bg-white/14'
+                            onClick={() => setIsEditingProfile(true)}
+                            type='button'>
+                            <Avatar member={profile} />
+                            <UserPen className='h-4 w-4' />
+                            Edit profile
+                        </button>
                         <button
                             className='inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/8 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/14'
                             onClick={() => signOut(firebaseAuth)}
@@ -143,7 +169,7 @@ export default function EdcPlannerPage() {
                         <ScheduleBoard
                             activeGroupId={activeGroupId}
                             currentUserId={user.uid}
-                            isAdmin={isAdmin}
+                            isAdmin={effectiveIsAdmin}
                         />
                     </Box>
                 ) : (
@@ -157,12 +183,33 @@ export default function EdcPlannerPage() {
                         </Text>
                     </BoxColumn>
                 )}
-                {isAdmin ? (
+                {effectiveIsAdmin ? (
                     <Box className='order-4 min-w-0 xl:order-3'>
                         <AdminPanel />
                     </Box>
                 ) : null}
             </Box>
+
+            {isEditingProfile ? (
+                <Box className='fixed inset-0 z-50 overflow-y-auto bg-black/75 px-3 py-6 backdrop-blur-sm sm:px-6'>
+                    <BoxColumn className='mx-auto min-h-full max-w-3xl justify-center gap-3'>
+                        <BoxRow className='justify-end'>
+                            <button
+                                className='rounded-full border border-white/15 bg-white/8 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/14'
+                                onClick={() => setIsEditingProfile(false)}
+                                type='button'>
+                                Close
+                            </button>
+                        </BoxRow>
+                        <ProfilePanel
+                            compact
+                            onSaved={() => setIsEditingProfile(false)}
+                            profile={profile}
+                            user={user}
+                        />
+                    </BoxColumn>
+                </Box>
+            ) : null}
         </BoxColumn>
     );
 }

@@ -1,8 +1,7 @@
 import { cn } from '@/lib/utils';
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono, Inter } from 'next/font/google';
-import Link from 'next/link';
-import { SiteNav } from './_components/shared/site-nav';
+import { SiteHeader } from './_components/shared/site-header';
 import { Scrollbar } from './_components/shared/scrollbar';
 import './globals.css';
 
@@ -41,16 +40,7 @@ export default function RootLayout({
                 inter.variable,
             )}>
             <body className='min-h-full flex flex-col'>
-                <header className='sticky top-0 z-50 border-b border-white/10 bg-black/35 backdrop-blur-md'>
-                    <nav className='mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-6 py-4 sm:px-10'>
-                        <Link
-                            href='/'
-                            className='text-sm font-semibold uppercase tracking-[0.3em] text-white'>
-                            Aeroc
-                        </Link>
-                        <SiteNav />
-                    </nav>
-                </header>
+                <SiteHeader />
                 <Scrollbar />
                 <div className='flex-1'>{children}</div>
             </body>

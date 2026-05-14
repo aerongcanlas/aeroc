@@ -1,20 +1,46 @@
 import { BoxColumn, BoxRow, Text } from '@/app/_components/ui';
 import { firebaseStorage, firestore } from '@/lib/firebase';
 import type { User } from 'firebase/auth';
-import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
-import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
-import { Camera } from 'lucide-react';
+import {
+    collection,
+    doc,
+    getDocs,
+    serverTimestamp,
+    setDoc,
+    writeBatch,
+} from 'firebase/firestore';
+import {
+    deleteObject,
+    getDownloadURL,
+    ref,
+    uploadBytes,
+} from 'firebase/storage';
+import { Camera, Trash2 } from 'lucide-react';
 import { useState } from 'react';
+import type { Profile } from './types';
 import { getFriendlyError, getInitials } from './utils';
 
-export default function ProfilePanel({ user }: { user: User }) {
+export default function ProfilePanel({
+    compact = false,
+    onSaved,
+    profile,
+    user,
+}: {
+    compact?: boolean;
+    onSaved?: () => void;
+    profile?: Profile;
+    user: User;
+}) {
     const [firstName, setFirstName] = useState(
-        user.displayName?.split(' ')[0] ?? '',
+        profile?.firstName ?? user.displayName?.split(' ')[0] ?? '',
     );
     const [lastName, setLastName] = useState(
-        user.displayName?.split(' ').slice(1).join(' ') ?? '',
+        profile?.lastName ??
+            user.displayName?.split(' ').slice(1).join(' ') ??
+            '',
     );
     const [photo, setPhoto] = useState<File | null>(null);
+    const [removePhoto, setRemovePhoto] = useState(false);
     const [error, setError] = useState('');
     const [warning, setWarning] = useState('');
     const [saving, setSaving] = useState(false);
@@ -30,7 +56,22 @@ export default function ProfilePanel({ user }: { user: User }) {
         setWarning('');
 
         try {
-            let photoURL = user.photoURL ?? '';
+            let photoURL = profile?.photoURL ?? user.photoURL ?? '';
+
+            if (removePhoto) {
+                try {
+                    await deleteObject(
+                        ref(
+                            firebaseStorage,
+                            `profile-pictures/${user.uid}/avatar`,
+                        ),
+                    );
+                } catch {
+                    // The profile should still save even if there is no stored file.
+                }
+
+                photoURL = '';
+            }
 
             if (photo) {
                 try {
@@ -42,14 +83,15 @@ export default function ProfilePanel({ user }: { user: User }) {
                         contentType: photo.type,
                     });
                     photoURL = await getDownloadURL(imageRef);
+                    setRemovePhoto(false);
                 } catch (photoError) {
                     setWarning(
-                        `Profile will save with initials because photo upload failed: ${getFriendlyError(photoError)}`,
+                        `Profile saved, but photo upload failed: ${getFriendlyError(photoError)}`,
                     );
                 }
             }
 
-            await setDoc(doc(firestore, 'users', user.uid), {
+            const nextProfile = {
                 uid: user.uid,
                 firstName: firstName.trim(),
                 lastName: lastName.trim(),
@@ -57,7 +99,36 @@ export default function ProfilePanel({ user }: { user: User }) {
                 photoURL,
                 email: user.email ?? '',
                 updatedAt: serverTimestamp(),
-            });
+            };
+
+            await setDoc(doc(firestore, 'users', user.uid), nextProfile);
+
+            const userGroups = await getDocs(
+                collection(firestore, 'users', user.uid, 'groups'),
+            );
+
+            if (!userGroups.empty) {
+                const batch = writeBatch(firestore);
+
+                userGroups.forEach((groupDoc) => {
+                    batch.set(
+                        doc(
+                            firestore,
+                            'groups',
+                            groupDoc.id,
+                            'members',
+                            user.uid,
+                        ),
+                        nextProfile,
+                        { merge: true },
+                    );
+                });
+
+                await batch.commit();
+            }
+
+            setPhoto(null);
+            onSaved?.();
         } catch (profileError) {
             setError(getFriendlyError(profileError));
         } finally {
@@ -66,18 +137,25 @@ export default function ProfilePanel({ user }: { user: User }) {
     };
 
     return (
-        <BoxColumn className='mx-auto min-h-screen w-full max-w-3xl justify-center gap-6 overflow-x-hidden px-3 py-8 text-white sm:px-8 sm:py-12'>
+        <BoxColumn
+            className={
+                compact
+                    ? 'w-full gap-6 text-white'
+                    : 'mx-auto min-h-screen w-full max-w-3xl justify-center gap-6 overflow-x-hidden px-3 py-8 text-white sm:px-8 sm:py-12'
+            }>
             <BoxColumn className='gap-6 rounded-2xl border border-white/10 bg-black/40 p-4 backdrop-blur-md sm:rounded-3xl sm:p-8'>
                 <BoxColumn className='gap-3'>
                     <Text className='text-sm font-semibold uppercase tracking-[0.3em] text-white/55'>
-                        Profile setup
+                        {compact ? 'Edit profile' : 'Profile setup'}
                     </Text>
                     <Text className='text-3xl font-semibold tracking-tight sm:text-4xl'>
-                        Add your festival face
+                        {compact
+                            ? 'Update your festival face'
+                            : 'Add your festival face'}
                     </Text>
                     <Text className='text-base leading-8 text-white/72'>
-                        Friends will see your photo on picked sets. If you skip
-                        the photo, your initials will show instead.
+                        Friends will see your name and photo on picked sets. If
+                        you skip the photo, your initials will show instead.
                     </Text>
                 </BoxColumn>
 
@@ -101,13 +179,31 @@ export default function ProfilePanel({ user }: { user: User }) {
                         </Text>
                         <input
                             className='sr-only'
-                            onChange={(event) =>
-                                setPhoto(event.target.files?.[0] ?? null)
-                            }
+                            onChange={(event) => {
+                                setPhoto(event.target.files?.[0] ?? null);
+                                setRemovePhoto(false);
+                            }}
                             type='file'
                             accept='image/*'
                         />
                     </label>
+                    {profile?.photoURL || photo ? (
+                        <button
+                            className='inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/15 bg-white/8 px-5 py-3 text-sm font-semibold text-white transition hover:bg-red-400/20 sm:w-auto'
+                            onClick={() => {
+                                setPhoto(null);
+                                setRemovePhoto(true);
+                            }}
+                            type='button'>
+                            <Trash2 className='h-4 w-4' />
+                            Remove photo
+                        </button>
+                    ) : null}
+                    {removePhoto ? (
+                        <Text className='text-sm text-white/55'>
+                            Photo will be removed when you save.
+                        </Text>
+                    ) : null}
                 </BoxColumn>
 
                 <BoxRow className='flex-col items-stretch gap-3 sm:flex-row sm:items-center'>
