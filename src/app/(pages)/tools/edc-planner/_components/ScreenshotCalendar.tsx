@@ -11,16 +11,18 @@ import {
 export default function ScreenshotCalendar({
     activeDay,
     days,
-    friendFilter,
     meetups,
+    selectedFriendIds,
+    selectedStageIds,
     selections,
     sets,
     stages,
 }: {
     activeDay: string;
     days: string[];
-    friendFilter: string;
     meetups: Meetup[];
+    selectedFriendIds: string[];
+    selectedStageIds: string[];
     selections: Record<string, Selection>;
     sets: FestivalSet[];
     stages: Stage[];
@@ -51,6 +53,8 @@ export default function ScreenshotCalendar({
     const visibleMeetups = meetups.filter((meetup) => meetup.day === activeDay);
     const hasMeetups = visibleMeetups.length > 0;
     const visibleStages = stages.filter((stage) =>
+        (selectedStageIds.length === 0 ||
+            selectedStageIds.includes(stage.id)) &&
         sets.some(
             (set) =>
                 set.day === activeDay &&
@@ -70,9 +74,9 @@ export default function ScreenshotCalendar({
         const selectedUserIds = selections[setId]?.userIds ?? [];
         let filteredUserIds = selectedUserIds;
 
-        if (friendFilter !== 'all') {
+        if (selectedFriendIds.length > 0) {
             filteredUserIds = filteredUserIds.filter(
-                (userId) => userId === friendFilter,
+                (userId) => selectedFriendIds.includes(userId),
             );
         }
 

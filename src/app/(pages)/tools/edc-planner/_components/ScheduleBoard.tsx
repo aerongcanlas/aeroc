@@ -12,7 +12,7 @@ import {
     serverTimestamp,
     setDoc,
 } from 'firebase/firestore';
-import { Check, Trash2 } from 'lucide-react';
+import { Check, ChevronDown, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import Avatar from './Avatar';
 import ScreenshotCalendar from './ScreenshotCalendar';
@@ -25,6 +25,7 @@ import type {
 } from './types';
 import {
     festivalId,
+    getDisplayTime,
     getFriendlyError,
     getScheduleMinute,
     sortStages,
@@ -48,7 +49,10 @@ export default function ScheduleBoard({
     const [members, setMembers] = useState<GroupMember[]>([]);
     const [selections, setSelections] = useState<Record<string, Selection>>({});
     const [activeDay, setActiveDay] = useState('Friday');
-    const [friendFilter, setFriendFilter] = useState('all');
+    const [selectedFriendIds, setSelectedFriendIds] = useState<string[]>([]);
+    const [selectedStageIds, setSelectedStageIds] = useState<string[]>([]);
+    const [isFriendsFilterOpen, setIsFriendsFilterOpen] = useState(false);
+    const [isStagesFilterOpen, setIsStagesFilterOpen] = useState(false);
     const [viewMode, setViewMode] = useState<
         'pick' | 'friends' | 'screenshot'
     >('pick');
@@ -211,13 +215,22 @@ export default function ScheduleBoard({
                     return false;
                 }
 
+                if (
+                    selectedStageIds.length > 0 &&
+                    !selectedStageIds.includes(set.stageId)
+                ) {
+                    return false;
+                }
+
                 if (viewMode === 'friends' && selectedUserIds.length === 0) {
                     return false;
                 }
 
                 if (
-                    friendFilter !== 'all' &&
-                    !selectedUserIds.includes(friendFilter)
+                    selectedFriendIds.length > 0 &&
+                    !selectedFriendIds.some((friendId) =>
+                        selectedUserIds.includes(friendId),
+                    )
                 ) {
                     return false;
                 }
@@ -232,12 +245,22 @@ export default function ScheduleBoard({
             );
     }, [
         activeDay,
-        currentUserId,
-        friendFilter,
+        selectedFriendIds,
+        selectedStageIds,
         selections,
         sets,
         viewMode,
     ]);
+
+    const visibleStages = useMemo(
+        () =>
+            stages.filter(
+                (stage) =>
+                    selectedStageIds.length === 0 ||
+                    selectedStageIds.includes(stage.id),
+            ),
+        [selectedStageIds, stages],
+    );
 
     const visibleMeetups = useMemo(
         () => meetups.filter((meetup) => meetup.day === activeDay),
@@ -273,6 +296,26 @@ export default function ScheduleBoard({
     const removeMeetup = async (meetupId: string) => {
         await deleteDoc(
             doc(firestore, 'groups', activeGroupId, 'meetups', meetupId),
+        );
+    };
+
+    const toggleFriendFilter = (friendId: string) => {
+        setSelectedFriendIds((currentFriendIds) =>
+            currentFriendIds.includes(friendId)
+                ? currentFriendIds.filter(
+                      (currentFriendId) => currentFriendId !== friendId,
+                  )
+                : [...currentFriendIds, friendId],
+        );
+    };
+
+    const toggleStageFilter = (stageId: string) => {
+        setSelectedStageIds((currentStageIds) =>
+            currentStageIds.includes(stageId)
+                ? currentStageIds.filter(
+                      (currentStageId) => currentStageId !== stageId,
+                  )
+                : [...currentStageIds, stageId],
         );
     };
 
@@ -342,29 +385,169 @@ export default function ScheduleBoard({
                     }`}
                     onClick={() => setViewMode('screenshot')}
                     type='button'>
-                    Screenshot view
+                    Calendar View
                 </button>
-                <select
-                    className='w-full rounded-2xl border border-white/10 bg-black/80 px-4 py-2 text-sm text-white outline-none focus:border-cyan-200/60 sm:w-auto'
-                    onChange={(event) => setFriendFilter(event.target.value)}
-                    value={friendFilter}>
-                    <option value='all'>All friends</option>
-                    {members.map((member) => (
-                        <option
-                            key={member.uid}
-                            value={member.uid}>
-                            {member.firstName} {member.lastName}
-                        </option>
-                    ))}
-                </select>
+                <BoxColumn className='relative w-full gap-2 sm:w-auto sm:min-w-64'>
+                    <button
+                        className='flex w-full items-center justify-between gap-3 rounded-full border border-white/15 bg-white/8 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/14'
+                        onClick={() =>
+                            setIsFriendsFilterOpen((isOpen) => !isOpen)
+                        }
+                        type='button'>
+                        <Text>Filter by Friends</Text>
+                        <BoxRow className='items-center gap-2 text-white/55'>
+                            <Text className='text-xs'>
+                                {selectedFriendIds.length
+                                    ? `${selectedFriendIds.length} selected`
+                                    : 'All friends'}
+                            </Text>
+                            <ChevronDown
+                                className={`h-4 w-4 transition ${
+                                    isFriendsFilterOpen ? 'rotate-180' : ''
+                                }`}
+                            />
+                        </BoxRow>
+                    </button>
+                    {isFriendsFilterOpen ? (
+                        <BoxColumn className='gap-3 rounded-2xl border border-white/10 bg-black/80 p-3 shadow-2xl backdrop-blur-md'>
+                            <BoxRow className='items-center justify-between gap-3'>
+                                <Text className='text-sm font-medium text-white/72'>
+                                    All friends
+                                </Text>
+                                <button
+                                    className='text-xs font-medium text-cyan-100 transition hover:text-white'
+                                    onClick={() => setSelectedFriendIds([])}
+                                    type='button'>
+                                    Clear
+                                </button>
+                            </BoxRow>
+                            <BoxRow className='flex-wrap gap-2'>
+                                {[
+                                    {
+                                        uid: currentUserId,
+                                        firstName: 'My',
+                                        lastName: 'Sets',
+                                    },
+                                    ...members.filter(
+                                        (member) =>
+                                            member.uid !== currentUserId,
+                                    ),
+                                ].map((member) => {
+                                    const isSelected =
+                                        selectedFriendIds.includes(member.uid);
+
+                                    return (
+                                        <label
+                                            className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium transition ${
+                                                isSelected
+                                                    ? 'border-white/30 bg-white text-black'
+                                                    : 'border-white/15 bg-white/8 text-white hover:bg-white/14'
+                                            }`}
+                                            key={member.uid}>
+                                            <input
+                                                checked={isSelected}
+                                                className='sr-only'
+                                                onChange={() =>
+                                                    toggleFriendFilter(
+                                                        member.uid,
+                                                    )
+                                                }
+                                                type='checkbox'
+                                            />
+                                            {isSelected ? (
+                                                <Check className='h-3.5 w-3.5' />
+                                            ) : null}
+                                            {member.firstName}{' '}
+                                            {member.lastName}
+                                        </label>
+                                    );
+                                })}
+                            </BoxRow>
+                        </BoxColumn>
+                    ) : null}
+                </BoxColumn>
+                <BoxColumn className='relative w-full gap-2 sm:w-auto sm:min-w-64'>
+                    <button
+                        className='flex w-full items-center justify-between gap-3 rounded-full border border-white/15 bg-white/8 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/14'
+                        onClick={() =>
+                            setIsStagesFilterOpen((isOpen) => !isOpen)
+                        }
+                        type='button'>
+                        <Text>Filter by Stages</Text>
+                        <BoxRow className='items-center gap-2 text-white/55'>
+                            <Text className='text-xs'>
+                                {selectedStageIds.length
+                                    ? `${selectedStageIds.length} selected`
+                                    : 'All stages'}
+                            </Text>
+                            <ChevronDown
+                                className={`h-4 w-4 transition ${
+                                    isStagesFilterOpen ? 'rotate-180' : ''
+                                }`}
+                            />
+                        </BoxRow>
+                    </button>
+                    {isStagesFilterOpen ? (
+                        <BoxColumn className='gap-3 rounded-2xl border border-white/10 bg-black/80 p-3 shadow-2xl backdrop-blur-md'>
+                            <BoxRow className='items-center justify-between gap-3'>
+                                <Text className='text-sm font-medium text-white/72'>
+                                    All stages
+                                </Text>
+                                <button
+                                    className='text-xs font-medium text-cyan-100 transition hover:text-white'
+                                    onClick={() => setSelectedStageIds([])}
+                                    type='button'>
+                                    Clear
+                                </button>
+                            </BoxRow>
+                            <BoxRow className='flex-wrap gap-2'>
+                                {stages.map((stage) => {
+                                    const isSelected =
+                                        selectedStageIds.includes(stage.id);
+
+                                    return (
+                                        <label
+                                            className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium transition ${
+                                                isSelected
+                                                    ? 'border-white/30 bg-white text-black'
+                                                    : 'border-white/15 bg-white/8 text-white hover:bg-white/14'
+                                            }`}
+                                            key={stage.id}>
+                                            <input
+                                                checked={isSelected}
+                                                className='sr-only'
+                                                onChange={() =>
+                                                    toggleStageFilter(stage.id)
+                                                }
+                                                type='checkbox'
+                                            />
+                                            <Box
+                                                className='h-2.5 w-2.5 rounded-full'
+                                                style={{
+                                                    backgroundColor:
+                                                        stage.color,
+                                                }}
+                                            />
+                                            {isSelected ? (
+                                                <Check className='h-3.5 w-3.5' />
+                                            ) : null}
+                                            {stage.name}
+                                        </label>
+                                    );
+                                })}
+                            </BoxRow>
+                        </BoxColumn>
+                    ) : null}
+                </BoxColumn>
             </BoxRow>
 
             {viewMode === 'screenshot' ? (
                 <ScreenshotCalendar
                     activeDay={activeDay}
                     days={days}
-                    friendFilter={friendFilter}
                     meetups={meetups}
+                    selectedFriendIds={selectedFriendIds}
+                    selectedStageIds={selectedStageIds}
                     selections={selections}
                     sets={sets}
                     stages={stages}
@@ -388,8 +571,13 @@ export default function ScheduleBoard({
                                                         {meetup.title}
                                                     </Text>
                                                     <Text className='text-sm text-cyan-50/70'>
-                                                        {meetup.startTime} -{' '}
-                                                        {meetup.endTime}
+                                                        {getDisplayTime(
+                                                            meetup.startTime,
+                                                        )}{' '}
+                                                        -{' '}
+                                                        {getDisplayTime(
+                                                            meetup.endTime,
+                                                        )}
                                                     </Text>
                                                     {meetup.location ? (
                                                         <Text className='text-sm text-white/62'>
@@ -420,7 +608,7 @@ export default function ScheduleBoard({
                     ) : null}
 
                     <Box className='flex min-w-0 snap-x snap-mandatory gap-4 overflow-x-auto pb-2 lg:grid lg:snap-none lg:grid-cols-2 lg:overflow-visible lg:pb-0'>
-                        {stages.map((stage) => {
+                        {visibleStages.map((stage) => {
                             const stageSets = visibleSets.filter(
                                 (set) => set.stageId === stage.id,
                             );
@@ -477,8 +665,13 @@ export default function ScheduleBoard({
                                                                 {set.artist}
                                                             </Text>
                                                             <Text className='text-sm text-white/62'>
-                                                                {set.startTime}{' '}
-                                                                - {set.endTime}
+                                                                {getDisplayTime(
+                                                                    set.startTime,
+                                                                )}{' '}
+                                                                -{' '}
+                                                                {getDisplayTime(
+                                                                    set.endTime,
+                                                                )}
                                                             </Text>
                                                         </BoxColumn>
                                                         <BoxRow className='gap-2'>
@@ -544,7 +737,9 @@ export default function ScheduleBoard({
                                             {activeDay}
                                             {viewMode === 'friends'
                                                 ? ' that anyone has picked.'
-                                                : friendFilter !== 'all'
+                                                : selectedFriendIds.length >
+                                                        0 ||
+                                                    selectedStageIds.length > 0
                                                   ? ' with the current filters.'
                                                   : '.'}
                                         </Text>
