@@ -253,13 +253,22 @@ export default function ScheduleBoard({
     ]);
 
     const visibleStages = useMemo(
-        () =>
-            stages.filter(
+        () => {
+            const filteredStages = stages.filter(
                 (stage) =>
                     selectedStageIds.length === 0 ||
                     selectedStageIds.includes(stage.id),
-            ),
-        [selectedStageIds, stages],
+            );
+
+            if (viewMode !== 'friends') {
+                return filteredStages;
+            }
+
+            return filteredStages.filter((stage) =>
+                visibleSets.some((set) => set.stageId === stage.id),
+            );
+        },
+        [selectedStageIds, stages, viewMode, visibleSets],
     );
 
     const visibleMeetups = useMemo(
